@@ -2,9 +2,7 @@ version: '3.9'
 
 services:
   frontend:
-    build:
-      context: ./expensy_frontend
-      dockerfile: Dockerfile
+    image: babanila/expensy_frontend:latest
     container_name: frontend
     ports:
       - "3000:3000"
@@ -14,9 +12,7 @@ services:
       - backend
 
   backend:
-    build:
-      context: ./expensy_backend
-      dockerfile: Dockerfile
+    image: babanila/expensy_backend:latest
     container_name: backend
     ports:
       - "8706:8706"
