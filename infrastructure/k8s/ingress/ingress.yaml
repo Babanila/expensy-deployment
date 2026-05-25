@@ -3,13 +3,14 @@ kind: Ingress
 metadata:
   name: expensy-ingress
   namespace: expensy
-  annotations:
-    kubernetes.io/ingress.class: nginx
 spec:
+  ingressClassName: nginx
   rules:
-    - host: expensy.yourdomain.com
-      http:
+    # To be used with DNS A record pointing to the Ingress controller's external IP
+    # - host: expensy.yourdomain.com 
+    - http:
         paths:
+        # Frontend Path
           - path: /
             pathType: Prefix
             backend:
@@ -17,3 +18,11 @@ spec:
                 name: frontend-service
                 port:
                   number: 3000
+        # Backend Path
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 8706
