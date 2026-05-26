@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: frontend-config
-  namespace: expensy
+  namespace: ${NAMESPACE}
 
 data:
   NEXT_PUBLIC_API_URL: "/api"

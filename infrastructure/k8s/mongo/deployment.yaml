@@ -1,8 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mongo
-  namespace: expensy
+  name: mongo 
+  namespace: ${NAMESPACE}
 spec:
   replicas: 1
   selector:
