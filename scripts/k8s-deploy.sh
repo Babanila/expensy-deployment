@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# deploy.sh - Deploy voting app to EKS in order
+# K8s-deploy.sh - Deploy Locally to Kubernetes
 
 set -Eeuo pipefail
 
