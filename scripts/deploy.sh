@@ -57,6 +57,29 @@ apply_manifest_dir() {
   done
 }
 
+# CLEAN OLD NON-HELM INGRESS RESOURCES
+cleanup_old_ingress() {
+  warn "Cleaning old ingress-nginx resources..."
+
+  # Namespace resources
+  kubectl delete namespace "${INGRESS_NAMESPACE}" --ignore-not-found=true --wait=true || true
+
+  # Cluster-scoped resources
+  kubectl delete clusterrole ingress-nginx --ignore-not-found=true || true
+  kubectl delete clusterrolebinding ingress-nginx --ignore-not-found=true || true
+  kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true || true
+  kubectl delete mutatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true || true
+  kubectl delete ingressclass nginx --ignore-not-found=true || true
+
+  # Optional cleanup
+  kubectl delete crd ingressclasses.networking.k8s.io --ignore-not-found=true || true
+
+  echo ""
+  info "Waiting for ingress-nginx cleanup..."
+  sleep 15
+  success "Old ingress-nginx resources removed."
+}
+
 
 # ==========================================
 # INSTALL kubectl
@@ -115,56 +138,31 @@ helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 
 # CHECK EXISTING HELM RELEASE
-if helm status ingress-nginx -n "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
+if helm status ingress-nginx \
+  -n "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
   success "ingress-nginx already installed."
 else
   warn "ingress-nginx Helm release not found."
 
-  # CLEANUP OLD NON-HELM RESOURCES
-  if kubectl get namespace "${INGRESS_NAMESPACE}" \
+  if kubectl get clusterrole ingress-nginx \
     >/dev/null 2>&1; then
 
-    warn "Old ingress-nginx namespace detected."
-    echo ""
-    info "Current Kubernetes Context:"
+    warn "Old non-Helm ingress resources detected."
     kubectl config current-context
-    echo ""
-    warn "A non-Helm ingress-nginx installation exists."
 
-    # SAFE DELETE PROTECTION
     if [[ "${FORCE_INGRESS_REINSTALL:-false}" == "true" ]]; then
-      warn "FORCE_INGRESS_REINSTALL=true"
-      warn "Deleting old ingress-nginx namespace..."
-      kubectl delete namespace "${INGRESS_NAMESPACE}" \
-        --ignore-not-found=true \
-        --wait=true
-
-      echo ""
-      info "Waiting for ingress-nginx namespace cleanup..."
-
-      while kubectl get namespace "${INGRESS_NAMESPACE}" \
-        >/dev/null 2>&1; do
-        echo "Waiting for ingress-nginx namespace deletion..."
-        sleep 5
-      done
-
-      success "Old ingress-nginx namespace removed."
-
+      cleanup_old_ingress
     else
+      error "Old ingress-nginx resources exist."
       echo ""
-      error "Old ingress-nginx resources detected."
-      echo ""
-      warn "To force reinstall ingress-nginx, run:"
-      echo ""
+      warn "Run with:"
       echo "export FORCE_INGRESS_REINSTALL=true"
-      echo ""
-      warn "Then rerun the deployment."
       exit 1
     fi
   fi
 
-  # INSTALL VIA HELM
-  info "Installing ingress-nginx with Helm..."
+  # INSTALL INGRESS-NGINX
+  info "Installing ingress-nginx..."
 
   helm upgrade --install ingress-nginx \
     ingress-nginx/ingress-nginx \
