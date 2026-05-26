@@ -121,17 +121,46 @@ else
   warn "ingress-nginx Helm release not found."
 
   # CLEANUP OLD NON-HELM RESOURCES
-  if kubectl get namespace "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
+  if kubectl get namespace "${INGRESS_NAMESPACE}" \
+    >/dev/null 2>&1; then
+
     warn "Old ingress-nginx namespace detected."
-    info "Removing old ingress-nginx resources..."
+    echo ""
+    info "Current Kubernetes Context:"
+    kubectl config current-context
+    echo ""
+    warn "A non-Helm ingress-nginx installation exists."
 
-    kubectl delete namespace "${INGRESS_NAMESPACE}" --ignore-not-found=true --wait=true
-    info "Waiting for namespace cleanup..."
+    # SAFE DELETE PROTECTION
+    if [[ "${FORCE_INGRESS_REINSTALL:-false}" == "true" ]]; then
+      warn "FORCE_INGRESS_REINSTALL=true"
+      warn "Deleting old ingress-nginx namespace..."
+      kubectl delete namespace "${INGRESS_NAMESPACE}" \
+        --ignore-not-found=true \
+        --wait=true
 
-    while kubectl get namespace "${INGRESS_NAMESPACE}" >/dev/null 2>&1; do
-      sleep 5
-      echo "Waiting for ingress-nginx namespace deletion..."
-    done
+      echo ""
+      info "Waiting for ingress-nginx namespace cleanup..."
+
+      while kubectl get namespace "${INGRESS_NAMESPACE}" \
+        >/dev/null 2>&1; do
+        echo "Waiting for ingress-nginx namespace deletion..."
+        sleep 5
+      done
+
+      success "Old ingress-nginx namespace removed."
+
+    else
+      echo ""
+      error "Old ingress-nginx resources detected."
+      echo ""
+      warn "To force reinstall ingress-nginx, run:"
+      echo ""
+      echo "export FORCE_INGRESS_REINSTALL=true"
+      echo ""
+      warn "Then rerun the deployment."
+      exit 1
+    fi
   fi
 
   # INSTALL VIA HELM
@@ -143,6 +172,7 @@ else
     --create-namespace \
     --set controller.replicaCount=2 \
     --set controller.service.type=LoadBalancer \
+    --set controller.admissionWebhooks.enabled=true \
     --wait \
     --timeout 15m
 
@@ -196,6 +226,8 @@ for i in {1..60}; do
     2>/dev/null || true)
 
   if [[ -n "${EXTERNAL_IP}" ]]; then
+    success "Ingress External IP:"
+    echo "http://${EXTERNAL_IP}"
     break
   fi
 
@@ -205,6 +237,8 @@ done
 
 if [[ -z "${EXTERNAL_IP}" ]]; then
   warn "External IP not assigned yet"
+  warn "Check ingress controller status using:"
+  echo "kubectl get svc -n ${INGRESS_NAMESPACE}"
 else
   success "Ingress External IP:"
   echo "http://${EXTERNAL_IP}"
