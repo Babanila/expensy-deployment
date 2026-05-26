@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: babanila/expensy_frontend:latest
+          image: ${FRONTEND_IMAGE}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
