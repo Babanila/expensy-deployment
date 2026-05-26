@@ -3,7 +3,7 @@ name: Docker Build & Push
 on:
   workflow_run:
     workflows:
-      - Test Applications
+      - Test
     types:
       - completed
 

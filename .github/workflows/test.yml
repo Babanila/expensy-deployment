@@ -1,11 +1,7 @@
-name: Test Applications
+name: Test
 
 on:
-  workflow_run:
-    workflows:
-      - Build Applications
-    types:
-      - completed
+  workflow_call:
 
 jobs:
   test:
@@ -16,7 +12,6 @@ jobs:
         service:
           - frontend
           - backend
-
     defaults:
       run:
         working-directory: services/${{ matrix.service }}
