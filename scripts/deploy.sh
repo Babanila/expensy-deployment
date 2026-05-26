@@ -105,24 +105,55 @@ info "Connected Cluster Nodes"
 kubectl get nodes
 
 
-# ==========================================
-# INSTALL NGINX INGRESS
-# ==========================================
+# =========================================
+# INSTALL NGINX INGRESS CONTROLLER
+# =========================================
+
 echo ""
-info "Installing ingress-nginx..."
+info "Checking ingress-nginx installation..."
 
-helm repo add ingress-nginx \
-  https://kubernetes.github.io/ingress-nginx
-helm repo update
-helm upgrade --install ingress-nginx \
-  ingress-nginx/ingress-nginx \
-  --namespace "${INGRESS_NAMESPACE}" \
-  --create-namespace \
-  --set controller.replicaCount=2 \
-  --set controller.service.type=LoadBalancer \
-  --set controller.publishService.enabled=true
+INGRESS_NAMESPACE="ingress-nginx"
 
-success "ingress-nginx installed"
+if kubectl get namespace "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
+  warn "Namespace ${INGRESS_NAMESPACE} already exists."
+else
+  info "Creating namespace ${INGRESS_NAMESPACE}..."
+  kubectl create namespace "${INGRESS_NAMESPACE}"
+fi
+
+
+# Check Existing Helm Release
+if helm status ingress-nginx -n "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
+  success "ingress-nginx already installed. Skipping installation."
+else
+  warn "ingress-nginx release not found."
+
+  # Detect Existing Resources
+  if kubectl get sa ingress-nginx -n "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
+    warn "Existing ingress-nginx resources detected."
+    info "Cleaning old ingress-nginx resources..."
+    kubectl delete sa ingress-nginx \
+      -n "${INGRESS_NAMESPACE}" \
+      --ignore-not-found
+  fi
+
+  info "Installing ingress-nginx..."
+
+  helm repo add ingress-nginx \
+    https://kubernetes.github.io/ingress-nginx
+
+  helm repo update
+  helm upgrade --install ingress-nginx \
+    ingress-nginx/ingress-nginx \
+    --namespace "${INGRESS_NAMESPACE}" \
+    --create-namespace \
+    --set controller.replicaCount=2 \
+    --set controller.service.type=LoadBalancer \
+    --wait \
+    --timeout 10m
+
+  success "ingress-nginx installed successfully."
+fi
 
 
 # ==========================================
@@ -143,16 +174,19 @@ kubectl wait \
 # ==========================================
 echo ""
 info "Installing cert-manager..."
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
+if helm status cert-manager -n cert-manager >/dev/null 2>&1; then
+  success "cert-manager already installed."
+else
+  helm repo add jetstack https://charts.jetstack.io
+  helm repo update
 
-helm upgrade --install cert-manager \
-  jetstack/cert-manager \
-  --namespace cert-manager \
-  --create-namespace \
-  --set crds.enabled=true
-
-success "cert-manager installed"
+  helm upgrade --install cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --set installCRDs=true \
+    --wait \
+    --timeout 10m
+fi
 
 # ==========================================
 # WAIT FOR EXTERNAL IP
