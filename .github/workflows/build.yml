@@ -33,10 +33,21 @@ jobs:
         run: npm run build
 
       # Upload Build Artifacts
-      - name: Upload Build Artifacts
+      - name: Upload Frontend Artifact
+        if: matrix.service == 'frontend'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.service }}-build
+          name: frontend-build
           path: |
-            services/${{ matrix.service }}/dist
-            services/${{ matrix.service }}/.next
+            services/frontend/.next
+            services/frontend/public
+            services/frontend/package.json
+
+      - name: Upload Backend Artifact
+        if: matrix.service == 'backend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: |
+            services/backend/dist
+            services/backend/package.json
