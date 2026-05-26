@@ -108,47 +108,73 @@ kubectl get nodes
 # =========================================
 # INSTALL NGINX INGRESS CONTROLLER
 # =========================================
-
 echo ""
 info "Checking ingress-nginx installation..."
 
-if kubectl get namespace "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
-  warn "Namespace ${INGRESS_NAMESPACE} already exists."
-else
-  info "Creating namespace ${INGRESS_NAMESPACE}..."
-  kubectl create namespace "${INGRESS_NAMESPACE}"
-fi
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
 
-
-# Check Existing Helm Release
+# CHECK EXISTING HELM RELEASE
 if helm status ingress-nginx -n "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
-  success "ingress-nginx already installed. Skipping installation."
+  success "ingress-nginx already installed."
 else
-  warn "ingress-nginx release not found."
+  warn "ingress-nginx Helm release not found."
 
-  # Detect Existing Resources
-  if kubectl get sa ingress-nginx -n "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
-    warn "Existing ingress-nginx resources detected."
-    info "Cleaning old ingress-nginx resources..."
-    kubectl delete sa ingress-nginx \
-      -n "${INGRESS_NAMESPACE}" \
-      --ignore-not-found
+  # CLEANUP OLD NON-HELM RESOURCES
+  if kubectl get namespace "${INGRESS_NAMESPACE}" \
+    >/dev/null 2>&1; then
+
+    warn "Old ingress-nginx namespace detected."
+    echo ""
+    info "Current Kubernetes Context:"
+    kubectl config current-context
+    echo ""
+    warn "A non-Helm ingress-nginx installation exists."
+
+    # SAFE DELETE PROTECTION
+    if [[ "${FORCE_INGRESS_REINSTALL:-false}" == "true" ]]; then
+      warn "FORCE_INGRESS_REINSTALL=true"
+      warn "Deleting old ingress-nginx namespace..."
+      kubectl delete namespace "${INGRESS_NAMESPACE}" \
+        --ignore-not-found=true \
+        --wait=true
+
+      echo ""
+      info "Waiting for ingress-nginx namespace cleanup..."
+
+      while kubectl get namespace "${INGRESS_NAMESPACE}" \
+        >/dev/null 2>&1; do
+        echo "Waiting for ingress-nginx namespace deletion..."
+        sleep 5
+      done
+
+      success "Old ingress-nginx namespace removed."
+
+    else
+      echo ""
+      error "Old ingress-nginx resources detected."
+      echo ""
+      warn "To force reinstall ingress-nginx, run:"
+      echo ""
+      echo "export FORCE_INGRESS_REINSTALL=true"
+      echo ""
+      warn "Then rerun the deployment."
+      exit 1
+    fi
   fi
 
-  info "Installing ingress-nginx..."
+  # INSTALL VIA HELM
+  info "Installing ingress-nginx with Helm..."
 
-  helm repo add ingress-nginx \
-    https://kubernetes.github.io/ingress-nginx
-
-  helm repo update
   helm upgrade --install ingress-nginx \
     ingress-nginx/ingress-nginx \
     --namespace "${INGRESS_NAMESPACE}" \
     --create-namespace \
     --set controller.replicaCount=2 \
     --set controller.service.type=LoadBalancer \
+    --set controller.admissionWebhooks.enabled=true \
     --wait \
-    --timeout 10m
+    --timeout 15m
 
   success "ingress-nginx installed successfully."
 fi
@@ -191,7 +217,6 @@ fi
 # ==========================================
 echo ""
 info "Waiting for external IP..."
-
 EXTERNAL_IP=""
 
 for i in {1..60}; do
@@ -201,16 +226,19 @@ for i in {1..60}; do
     2>/dev/null || true)
 
   if [[ -n "${EXTERNAL_IP}" ]]; then
+    success "Ingress External IP:"
+    echo "http://${EXTERNAL_IP}"
     break
   fi
 
   echo "Waiting for external IP... (${i}/60)"
   sleep 10
-
 done
 
 if [[ -z "${EXTERNAL_IP}" ]]; then
   warn "External IP not assigned yet"
+  warn "Check ingress controller status using:"
+  echo "kubectl get svc -n ${INGRESS_NAMESPACE}"
 else
   success "Ingress External IP:"
   echo "http://${EXTERNAL_IP}"
@@ -244,17 +272,11 @@ apply_manifest_dir "${K8S_DIR}/ingress"
 # ==========================================
 echo ""
 info "Waiting for backend..."
-
-kubectl rollout status deployment/backend \
-  -n "$NAMESPACE" \
-  --timeout=300s
+kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=300s
 
 echo ""
 info "Waiting for frontend..."
-
-kubectl rollout status deployment/frontend \
-  -n "$NAMESPACE" \
-  --timeout=300s
+kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=300s
 
 
 # ==========================================
@@ -268,7 +290,6 @@ kubectl get all -n "$NAMESPACE"
 echo ""
 
 if [[ -n "${EXTERNAL_IP}" ]]; then
-
   success "Application URL:"
   echo "http://${EXTERNAL_IP}"
 
