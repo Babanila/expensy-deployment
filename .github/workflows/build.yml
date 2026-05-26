@@ -1,0 +1,53 @@
+name: Build
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - frontend
+          - backend
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: services/${{ matrix.service }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Application
+        run: npm run build
+
+      # Upload Build Artifacts
+      - name: Upload Frontend Artifact
+        if: matrix.service == 'frontend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: |
+            services/frontend/.next
+            services/frontend/public
+            services/frontend/package.json
+
+      - name: Upload Backend Artifact
+        if: matrix.service == 'backend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: |
+            services/backend/dist
+            services/backend/package.json

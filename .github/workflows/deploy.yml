@@ -1,0 +1,67 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+      image_tag:
+        required: false
+        type: string
+        default: latest
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Select Environment
+        required: true
+        type: choice
+
+        options:
+          - dev
+          - staging
+          - production
+
+      image_tag:
+        description: Docker image tag
+        required: false
+        default: latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment || github.event.inputs.environment }}
+
+    env:
+      NAMESPACE: ${{ vars.NAMESPACE }}
+      DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Create Env File
+        run: |
+          cat <<EOF > .env
+          NAMESPACE=${NAMESPACE}
+          DOMAIN_NAME=${DOMAIN_NAME}
+          EOF
+
+      - name: Deploy Application
+        run: |
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh

@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - frontend
+          - backend
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Download Build Artifacts
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.service }}-build
+          path: services/${{ matrix.service }}
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Tests
+        run: |
+          if npm run | grep -q "test"; then
+            npm test
+          else
+            echo "No tests found."
+          fi
