@@ -112,8 +112,6 @@ kubectl get nodes
 echo ""
 info "Checking ingress-nginx installation..."
 
-INGRESS_NAMESPACE="ingress-nginx"
-
 if kubectl get namespace "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
   warn "Namespace ${INGRESS_NAMESPACE} already exists."
 else
