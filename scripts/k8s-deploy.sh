@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# deploy.sh - Deploy voting app to EKS in order
+# K8s-deploy.sh - Deploy Locally to Kubernetes
 
 set -Eeuo pipefail
 
@@ -22,9 +22,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 K8S_DIR="${ROOT_DIR}/infrastructure/k8s"
 
 
-# =========================================
 # Secure .env loading
-# =========================================
 load_env() {
   local env_file="${ROOT_DIR}/.env"
 
@@ -44,13 +42,12 @@ load_env() {
 }
 
 
-# =========================================
 # Manifest Application Helper
-# =========================================
 apply_manifest_dir() {
   local dir="$1"
 
   for file in "$dir"/*.yaml; do
+    echo ""
     info "Applying $(basename "$file")"
     envsubst < "$file" | kubectl apply -f -
 
@@ -80,7 +77,6 @@ echo ""
 info "Creating namespace..."
 envsubst < "${K8S_DIR}/namespace.yaml" | kubectl apply -f -
 kubectl config set-context --current --namespace=$NAMESPACE
-
 success "$NAMESPACE created successfully."
 
 
@@ -102,33 +98,8 @@ else
   warn "Ingress controller already installed. Skipping..."
 fi
 
-# Wait For Ingress External IP
-echo ""
-info "Waiting for Ingress LoadBalancer external IP..."
 
-for i in {1..30}; do
-  EXTERNAL_IP=$(kubectl get svc ingress-nginx-controller \
-    -n "${INGRESS_NAMESPACE}" \
-    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
-
-  if [[ -n "${EXTERNAL_IP}" ]]; then
-    break
-  fi
-
-  echo "Waiting for external IP... (${i}/30)"
-  sleep 10
-done
-
-if [[ -z "${EXTERNAL_IP}" ]]; then
-  warn "External IP not assigned yet."
-else
-  success "Ingress External IP: ${EXTERNAL_IP}"
-fi
-
-
-# =========================================
-# Apply Secrets
-# =========================================
+# Apply Manifests
 apply_manifest_dir "${K8S_DIR}/secrets"
 apply_manifest_dir "${K8S_DIR}/configmaps"
 apply_manifest_dir "${K8S_DIR}/mongo"
@@ -156,12 +127,3 @@ info "Resources in namespace: $NAMESPACE"
 kubectl get all -n $NAMESPACE
 
 echo ""
-
-if [[ -n "${EXTERNAL_IP}" ]]; then
-  success "Ingress External IP:"
-  echo "http://${EXTERNAL_IP}"
-
-  echo ""
-  warn "Update your DNS record:"
-  echo "expensy.yourdomain.com -> ${EXTERNAL_IP}"
-fi

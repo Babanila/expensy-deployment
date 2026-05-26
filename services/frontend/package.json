@@ -11,7 +11,8 @@
     "preview": "next build && next start",
     "typecheck": "tsc --noEmit",
     "format:write": "prettier --write \"**/*.{ts,tsx,mdx}\" --cache",
-    "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache"
+    "format:check": "prettier --check \"**/*.{ts,tsx,mdx}\" --cache",
+    "test": "echo \"No tests configured\""
   },
   "dependencies": {
     "@radix-ui/react-label": "2.1.0",

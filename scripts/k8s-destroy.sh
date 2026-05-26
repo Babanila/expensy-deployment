@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# K8s-destroy.sh - Destroy Locally Deployed Kubernetes Resources
+
 set -Eeuo pipefail
 
 # Colors

@@ -1,0 +1,37 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+  pull_request:
+    branches:
+      - main
+      - dev
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  test:
+    needs: build
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  docker:
+    needs: test
+    uses: ./.github/workflows/docker.yml
+    secrets: inherit
+
+  deploy:
+    needs: docker
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      image_tag: latest
+    secrets: inherit
