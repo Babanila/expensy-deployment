@@ -21,12 +21,46 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 K8S_DIR="${ROOT_DIR}/infrastructure/k8s"
 
+
+# =========================================
+# Secure .env loading
+# =========================================
+load_env() {
+  local env_file="${ROOT_DIR}/.env"
+
+  if [[ ! -f "$env_file" ]]; then
+    warn ".env file not found. Continuing with existing environment variables."
+    return
+  fi
+
+  info "Loading environment variables from .env"
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$env_file"
+  set +a
+
+  info "Environment variables loaded..."
+}
+
+
+# =========================================
+# Manifest Application Helper
+# =========================================
+apply_manifest_dir() {
+  local dir="$1"
+
+  for file in "$dir"/*.yaml; do
+    info "Applying $(basename "$file")"
+    envsubst < "$file" | kubectl apply -f -
+
+  done
+}
+
+
 echo "========================================="
 echo "Deploying Expensy Kubernetes Resources"
 echo "========================================="
-
-NAMESPACE="expensy"
-INGRESS_NAMESPACE="ingress-nginx"
 
 
 # Check Dependencies
@@ -40,9 +74,14 @@ command -v helm >/dev/null 2>&1 || {
   exit 1
 }
 
+load_env
+
 echo ""
 info "Creating namespace..."
-kubectl apply -f "${K8S_DIR}/namespace.yaml"
+envsubst < "${K8S_DIR}/namespace.yaml" | kubectl apply -f -
+kubectl config set-context --current --namespace=$NAMESPACE
+
+success "$NAMESPACE created successfully."
 
 
 # Install NGINX Ingress Controller
@@ -87,41 +126,24 @@ else
 fi
 
 
-echo ""
-info "Applying secrets..."
-kubectl apply -f "${K8S_DIR}/secrets/"
-
-echo ""
-info "Applying configmaps..."
-kubectl apply -f "${K8S_DIR}/configmaps/"
-
-echo ""
-info "Deploying MongoDB..."
-kubectl apply -f "${K8S_DIR}/mongo/"
-
-echo ""
-info "Deploying Redis..."
-kubectl apply -f "${K8S_DIR}/redis/"
-
-echo ""
-info "Deploying Backend..."
-kubectl apply -f "${K8S_DIR}/backend/"
-
-echo ""
-info "Deploying Frontend..."
-kubectl apply -f "${K8S_DIR}/frontend/"
-
-echo ""
-info "Deploying Ingress..."
-kubectl apply -f "${K8S_DIR}/ingress/"
+# =========================================
+# Apply Secrets
+# =========================================
+apply_manifest_dir "${K8S_DIR}/secrets"
+apply_manifest_dir "${K8S_DIR}/configmaps"
+apply_manifest_dir "${K8S_DIR}/mongo"
+apply_manifest_dir "${K8S_DIR}/redis"
+apply_manifest_dir "${K8S_DIR}/backend"
+apply_manifest_dir "${K8S_DIR}/frontend"
+apply_manifest_dir "${K8S_DIR}/ingress"
 
 
 # Wait For Pods
 echo ""
 info "Waiting for pods to become ready..."
 
-kubectl wait --for=condition=available --timeout=300s deployment/frontend -n "${NAMESPACE}"
-kubectl wait --for=condition=available --timeout=300s deployment/backend -n "${NAMESPACE}"
+kubectl wait --for=condition=available --timeout=300s deployment/frontend -n "$NAMESPACE"
+kubectl wait --for=condition=available --timeout=300s deployment/backend -n "$NAMESPACE"
 
 
 echo ""
