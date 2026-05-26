@@ -1,15 +1,10 @@
-name: Docker Build & Push
+name: Docker
 
 on:
-  workflow_run:
-    workflows:
-      - Test
-    types:
-      - completed
+  workflow_call:
 
 jobs:
   docker:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,7 +23,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
+      # Download Build Artifacts
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.service }}-build
+          path: services/${{ matrix.service }}
+
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
@@ -37,26 +39,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Frontend
-      - name: Build & Push Frontend
-        if: matrix.service == 'frontend'
+      # Build & Push
+      - name: Build & Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: |
-            ${{ matrix.image }}:latest
-            ${{ matrix.image }}:${{ github.sha }}
 
-      # Backend
-      - name: Build & Push Backend
-        if: matrix.service == 'backend'
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: true
           tags: |
             ${{ matrix.image }}:latest
             ${{ matrix.image }}:${{ github.sha }}

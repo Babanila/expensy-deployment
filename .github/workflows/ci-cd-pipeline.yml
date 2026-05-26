@@ -27,6 +27,7 @@ jobs:
     secrets: inherit
 
   deploy:
-    needs: push
+    needs: docker
+    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy.yml
     secrets: inherit

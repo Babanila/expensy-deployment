@@ -1,7 +1,15 @@
-name: Deploy To AKS
+name: Deploy
 
 on:
   workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_tag:
+        required: false
+        type: string
+        default: latest
 
   workflow_dispatch:
     inputs:
@@ -22,7 +30,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.event.inputs.environment }}
+      name: ${{ inputs.environment || github.event.inputs.environment }}
+
     env:
       NAMESPACE: ${{ vars.NAMESPACE }}
 
@@ -44,25 +53,26 @@ jobs:
           cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
 
       # Create Runtime .env
-      - name: Create Deployment Env File
+      - name: Create Env File
         run: |
           cat <<EOF > .env
           NAMESPACE=${NAMESPACE}
           EOF
 
-      # Deploy To Kubernetes
+      # Deploy Application
       - name: Deploy Application
         run: |
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
 
-      # Verify Rollout
+      # Verify Frontend Rollout
       - name: Verify Frontend
         run: |
           kubectl rollout status deployment/frontend \
             -n "${NAMESPACE}" \
             --timeout=300s
 
+      # Verify Backend Rollout
       - name: Verify Backend
         run: |
           kubectl rollout status deployment/backend \

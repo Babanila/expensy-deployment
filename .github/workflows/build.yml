@@ -1,16 +1,7 @@
 name: Build
 
 on:
-  push:
-    branches:
-      - main
-      - dev
-      - feature/**
-
-  pull_request:
-    branches:
-      - main
-      - dev
+  workflow_call:
 
 jobs:
   build:
@@ -40,3 +31,12 @@ jobs:
 
       - name: Build Application
         run: npm run build
+
+      # Upload Build Artifacts
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-build
+          path: |
+            services/${{ matrix.service }}/dist
+            services/${{ matrix.service }}/.next
