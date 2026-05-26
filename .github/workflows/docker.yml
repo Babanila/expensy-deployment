@@ -16,11 +16,13 @@ jobs:
         include:
           - service: frontend
             image: babanila/expensy_frontend
-            dockerfile: ./frontend/Dockerfile
+            dockerfile: services/frontend/Dockerfile
+            context: services/frontend
 
           - service: backend
             image: babanila/expensy_backend
-            dockerfile: ./backend/Dockerfile
+            dockerfile: services/backend/Dockerfile
+            context: services/backend
 
     steps:
       - name: Checkout Repository
@@ -35,25 +37,25 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & Push Frontend Image
+      # Frontend
+      - name: Build & Push Frontend
         if: matrix.service == 'frontend'
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: |
             ${{ matrix.image }}:latest
             ${{ matrix.image }}:${{ github.sha }}
-          build-args: |
-            NEXT_PUBLIC_API_URL=/api
 
-      - name: Build & Push Backend Image
+      # Backend
+      - name: Build & Push Backend
         if: matrix.service == 'backend'
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: |
             ${{ matrix.image }}:latest

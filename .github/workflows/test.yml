@@ -19,7 +19,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./${{ matrix.service }}
+        working-directory: services/${{ matrix.service }}
 
     steps:
       - name: Checkout Repository
@@ -29,8 +29,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: ./${{ matrix.service }}/package-lock.json
 
       - name: Install Dependencies
         run: npm install
@@ -40,5 +38,5 @@ jobs:
           if npm run | grep -q "test"; then
             npm test
           else
-            echo "No tests found. Skipping..."
+            echo "No tests found."
           fi
