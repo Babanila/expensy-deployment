@@ -37,6 +37,7 @@ jobs:
 
     env:
       NAMESPACE: ${{ vars.NAMESPACE }}
+      DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
 
     steps:
       - name: Checkout Repository
@@ -57,6 +58,7 @@ jobs:
         run: |
           cat <<EOF > .env
           NAMESPACE=${NAMESPACE}
+          DOMAIN_NAME=${DOMAIN_NAME}
           EOF
 
       - name: Deploy Application
