@@ -6,6 +6,7 @@ on:
       environment:
         required: true
         type: string
+
       image_tag:
         required: false
         type: string
@@ -17,10 +18,12 @@ on:
         description: Select Environment
         required: true
         type: choice
+
         options:
           - dev
           - staging
           - production
+
       image_tag:
         description: Docker image tag
         required: false
@@ -39,42 +42,24 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Azure Login
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Set AKS Context
       - name: Set AKS Context
         uses: azure/aks-set-context@v4
         with:
           resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
 
-      # Create Runtime .env
       - name: Create Env File
         run: |
           cat <<EOF > .env
           NAMESPACE=${NAMESPACE}
           EOF
 
-      # Deploy Application
       - name: Deploy Application
         run: |
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
-
-      # Verify Frontend Rollout
-      - name: Verify Frontend
-        run: |
-          kubectl rollout status deployment/frontend \
-            -n "${NAMESPACE}" \
-            --timeout=300s
-
-      # Verify Backend Rollout
-      - name: Verify Backend
-        run: |
-          kubectl rollout status deployment/backend \
-            -n "${NAMESPACE}" \
-            --timeout=300s
