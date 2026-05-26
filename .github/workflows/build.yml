@@ -1,0 +1,44 @@
+name: Build Applications
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/**
+
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service:
+          - frontend
+          - backend
+
+    defaults:
+      run:
+        working-directory: ./${{ matrix.service }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ./${{ matrix.service }}/package-lock.json
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Application
+        run: npm run build
