@@ -1,0 +1,68 @@
+name: Deploy To AKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Select Environment
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      image_tag:
+        description: Docker image tag
+        required: false
+        default: latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    env:
+      NAMESPACE: ${{ vars.NAMESPACE }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Azure Login
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Set AKS Context
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+
+      # Create Runtime .env
+      - name: Create Deployment Env File
+        run: |
+          cat <<EOF > .env
+          NAMESPACE=${NAMESPACE}
+          EOF
+
+      # Deploy To Kubernetes
+      - name: Deploy Application
+        run: |
+          chmod +x scripts/deploy.sh
+          ./scripts/deploy.sh
+
+      # Verify Rollout
+      - name: Verify Frontend
+        run: |
+          kubectl rollout status deployment/frontend \
+            -n "${NAMESPACE}" \
+            --timeout=300s
+
+      - name: Verify Backend
+        run: |
+          kubectl rollout status deployment/backend \
+            -n "${NAMESPACE}" \
+            --timeout=300s
