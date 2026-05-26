@@ -2,48 +2,48 @@ version: '3.9'
 
 services:
   frontend:
-    image: babanila/expensy_frontend:latest
+    image: ${FRONTEND_IMAGE}
     container_name: frontend
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:8706
+      NEXT_PUBLIC_API_URL: http://backend:${PORT}
     depends_on:
       - backend
 
   backend:
-    image: babanila/expensy_backend:latest
+    image: ${BACKEND_IMAGE}
     container_name: backend
     ports:
-      - "8706:8706"
+      - "8706:${PORT}"
     environment:
-      PORT: 8706
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: someredispassword
-      DATABASE_URI: mongodb://root:example@mongo:27017
+      PORT: ${PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      DATABASE_URI: ${DATABASE_URI}
     depends_on:
       - mongo
       - redis
 
   mongo:
-    image: mongo:7
+    image: ${MONGO_IMAGE}
     container_name: mongo
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "27017:27017"
+      - "27017:${DB_PORT}"
     volumes:
       - mongo_data:/data/db
 
   redis:
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE}
     container_name: redis
-    command: redis-server --requirepass someredispassword
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
-      - "6379:6379"
+      - "6379:${REDIS_PORT}"
 
 volumes:
   mongo_data:

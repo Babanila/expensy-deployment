@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: expensy-ingress
+  namespace: ${NAMESPACE}
+spec:
+  ingressClassName: nginx
+  rules:
+    # To be used with DNS A record pointing to the Ingress controller's external IP
+    # - host: expensy.yourdomain.com 
+    - http:
+        paths:
+        # Frontend Path
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-service
+                port:
+                  number: 3000
+        # Backend Path
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 8706
