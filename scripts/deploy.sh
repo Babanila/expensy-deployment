@@ -34,6 +34,8 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 K8S_DIR="${ROOT_DIR}/infrastructure/k8s"
 
 NAMESPACE="${NAMESPACE:-expensy}"
+REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}"
+MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
 INGRESS_NAMESPACE="ingress-nginx"
 
 
