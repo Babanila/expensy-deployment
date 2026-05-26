@@ -1,0 +1,53 @@
+version: '3.9'
+
+services:
+  frontend:
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8706
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "8706:8706"
+    environment:
+      PORT: 8706
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: someredispassword
+      DATABASE_URI: mongodb://root:example@mongo:27017
+    depends_on:
+      - mongo
+      - redis
+
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server --requirepass someredispassword
+    ports:
+      - "6379:6379"
+
+volumes:
+  mongo_data:
