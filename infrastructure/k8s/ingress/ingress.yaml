@@ -3,14 +3,40 @@ kind: Ingress
 metadata:
   name: expensy-ingress
   namespace: ${NAMESPACE}
+  annotations:
+    # NGINX
+    kubernetes.io/ingress.class: nginx
+
+    # CERT MANAGER
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+    # FORCE HTTPS
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+    # REWRITE API PATH
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - ${DOMAIN_NAME}
+      secretName: expensy-tls
   rules:
-    # To be used with DNS A record pointing to the Ingress controller's external IP
-    - host: baba-expensy.az.ironlabs.com
+    - host: ${DOMAIN_NAME}
       http:
         paths:
-        # Frontend Path
+          # BACKEND API
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 8706
+
+          # FRONTEND
           - path: /
             pathType: Prefix
             backend:
@@ -18,11 +44,3 @@ spec:
                 name: frontend-service
                 port:
                   number: 3000
-        # Backend Path
-          # - path: /api
-          #   pathType: Prefix
-          #   backend:
-          #     service:
-          #       name: backend-service
-          #       port:
-          #         number: 8706
