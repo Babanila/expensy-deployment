@@ -7,8 +7,8 @@ spec:
   ingressClassName: nginx
   rules:
     # To be used with DNS A record pointing to the Ingress controller's external IP
-    # - host: expensy.yourdomain.com 
-    - http:
+    - host: baba-expensy.az.ironlabs.com
+      http:
         paths:
         # Frontend Path
           - path: /
@@ -19,10 +19,10 @@ spec:
                 port:
                   number: 3000
         # Backend Path
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: backend-service
-                port:
-                  number: 8706
+          # - path: /api
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: backend-service
+          #       port:
+          #         number: 8706
