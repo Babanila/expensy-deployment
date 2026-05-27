@@ -211,20 +211,8 @@ else
   --create-namespace \
   --set controller.replicaCount=2 \
   --set controller.service.type=LoadBalancer \
-  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
-  --set controller.minReadySeconds=60 \
-  --set controller.resources.requests.cpu=200m \
-  --set controller.resources.requests.memory=256Mi \
-  --set controller.resources.limits.cpu=1 \
-  --set controller.resources.limits.memory=1Gi \
-  --set controller.autoscaling.enabled=true \
-  --set controller.autoscaling.minReplicas=2 \
-  --set controller.autoscaling.maxReplicas=5 \
-  --set controller.service.externalTrafficPolicy=Local \
-  --set controller.metrics.enabled=true \
   --set controller.admissionWebhooks.enabled=true \
-  --set controller.metrics.serviceMonitor.enabled=true \
-  --set controller.metrics.serviceMonitor.namespace=monitoring \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
   --wait \
   --timeout 15m
 
