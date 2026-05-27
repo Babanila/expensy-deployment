@@ -223,7 +223,6 @@ else
   --set controller.service.externalTrafficPolicy=Local \
   --set controller.metrics.enabled=true \
   --set controller.admissionWebhooks.enabled=true \
-  --set controller.autoscaling.enabled=true \
   --set controller.metrics.serviceMonitor.enabled=true \
   --set controller.metrics.serviceMonitor.namespace=monitoring \
   --wait \
