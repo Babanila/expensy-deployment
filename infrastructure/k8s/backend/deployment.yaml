@@ -16,6 +16,7 @@ spec:
       containers:
         - name: backend
           image: ${BACKEND_IMAGE}:${IMAGE_TAG}
+          imagePullPolicy: Always
           ports:
             - containerPort: 8706
           envFrom:
