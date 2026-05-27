@@ -1,6 +1,10 @@
 # Use as parent image
 FROM node:20-alpine AS deps
 
+# Accept build argument with default for local dev
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8706}
+
 WORKDIR /app
 
 COPY package*.json ./
