@@ -181,10 +181,10 @@ Add variables per environment.
 
 ### Variables
 
-| Variable    | Example                      |
-| ----------- | ---------------------------- |
-| NAMESPACE   | expensy                      |
-| DOMAIN_NAME | baba-expensy.az.ironlabs.com |
+| Variable    | Example                         |
+| ----------- | --------------------------------|
+| NAMESPACE   | expensy                         |
+| DOMAIN_NAME | baba.azure.ironlabs.online |
 
 
 ## Docker Hub Setup
@@ -332,7 +332,7 @@ kubectl get pods -n ingress-nginx
 
 ## Access Application
 ```bash
-https://baba-expensy.az.ironlabs.com
+https://baba.azure.ironlabs.online
 ```
 
 
