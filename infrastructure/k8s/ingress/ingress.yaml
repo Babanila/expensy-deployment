@@ -12,7 +12,7 @@ metadata:
     acme.cert-manager.io/http01-edit-in-place: "true"
 
     # FORCE HTTPS
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 
     # REWRITE API PATH
     nginx.ingress.kubernetes.io/rewrite-target: /$2
