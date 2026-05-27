@@ -36,12 +36,45 @@ K8S_DIR="${ROOT_DIR}/infrastructure/k8s"
 NAMESPACE="${NAMESPACE:-expensy}"
 REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}"
 MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
+BACKEND_IMAGE="${BACKEND_IMAGE}"
+FRONTEND_IMAGE="${FRONTEND_IMAGE}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
 INGRESS_NAMESPACE="ingress-nginx"
 
 
 # ==========================================
-# HELPERS
+# VALIDATE REQUIRED VARIABLES
 # ==========================================
+required_vars=(
+  NAMESPACE
+  BACKEND_IMAGE
+  FRONTEND_IMAGE
+  IMAGE_TAG
+)
+
+for var in "${required_vars[@]}"; do
+  if [[ -z "${!var:-}" ]]; then
+    error "Required environment variable missing: ${var}"
+    exit 1
+  fi
+done
+
+
+# ==========================================
+# SHOW DEPLOYMENT VARIABLES
+# ==========================================
+echo ""
+info "Deployment Configuration"
+
+echo "Environment: ${ENVIRONMENT:-unknown}"
+echo "Namespace: ${NAMESPACE}"
+echo "Backend Image: ${BACKEND_IMAGE}:${IMAGE_TAG}"
+echo "Frontend Image: ${FRONTEND_IMAGE}:${IMAGE_TAG}"
+echo "Mongo Image: ${MONGO_IMAGE}"
+echo "Redis Image: ${REDIS_IMAGE}"
+
+
+# HELPERS FUNCTIONS
 check_command() {
   command -v "$1" >/dev/null 2>&1
 }
@@ -53,9 +86,14 @@ apply_manifest_dir() {
     [ -f "$file" ] || continue
 
     echo ""
-    info "Applying $(basename "$file")"
-    envsubst < "$file" | kubectl apply -f -
+    info "Rendering $(basename "$file")"
+    rendered_manifest=$(envsubst < "$file")
 
+    echo "$rendered_manifest"
+
+    echo ""
+    info "Applying $(basename "$file")"
+    echo "$rendered_manifest" | kubectl apply -f -
   done
 }
 
@@ -83,9 +121,7 @@ cleanup_old_ingress() {
 }
 
 
-# ==========================================
 # INSTALL kubectl
-# ==========================================
 install_kubectl() {
   if check_command kubectl; then
     success "kubectl already installed"
@@ -100,9 +136,7 @@ install_kubectl() {
 }
 
 
-# ==========================================
 # INSTALL HELM
-# ==========================================
 install_helm() {
   if check_command helm; then
     success "helm already installed"
