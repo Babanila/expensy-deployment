@@ -38,6 +38,8 @@ jobs:
     env:
       NAMESPACE: ${{ vars.NAMESPACE }}
       DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+      REDIS_IMAGE: ${{ vars.REDIS_IMAGE }}
+      MONGO_IMAGE: ${{ vars.MONGO_IMAGE }}
 
     steps:
       - name: Checkout Repository
@@ -59,6 +61,8 @@ jobs:
           cat <<EOF > .env
           NAMESPACE=${NAMESPACE}
           DOMAIN_NAME=${DOMAIN_NAME}
+          REDIS_IMAGE=${REDIS_IMAGE}
+          MONGO_IMAGE=${MONGO_IMAGE}
           EOF
 
       - name: Deploy Application
