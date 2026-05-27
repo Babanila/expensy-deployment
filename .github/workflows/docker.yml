@@ -2,6 +2,12 @@ name: Docker
 
 on:
   workflow_call:
+    inputs:
+      api_url:
+        description: 'Backend API URL for Next.js'
+        required: false
+        default: 'http://localhost:8706'
+        type: string
 
 jobs:
   docker:
@@ -60,3 +66,6 @@ jobs:
           
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ github.event_name == 'workflow_dispatch' && inputs.api_url || 'http://backend-service:8706' }}
