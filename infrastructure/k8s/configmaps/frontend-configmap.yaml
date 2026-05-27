@@ -5,5 +5,4 @@ metadata:
   namespace: ${NAMESPACE}
 
 data:
-  # Set in docker build args
-  # NEXT_PUBLIC_API_URL: "http://backend-service:8706"
+  NEXT_PUBLIC_API_URL: "http://${DOMAIN_NAME}/api"
