@@ -36,10 +36,18 @@ jobs:
       name: ${{ inputs.environment || github.event.inputs.environment }}
 
     env:
+      ENVIRONMENT: ${{ inputs.environment || github.event.inputs.environment }}
+
       NAMESPACE: ${{ vars.NAMESPACE }}
       DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+
       REDIS_IMAGE: ${{ vars.REDIS_IMAGE }}
       MONGO_IMAGE: ${{ vars.MONGO_IMAGE }}
+
+      BACKEND_IMAGE: babanila/expensy_backend
+      FRONTEND_IMAGE: babanila/expensy_frontend
+
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
 
     steps:
       - name: Checkout Repository
@@ -55,19 +63,48 @@ jobs:
         with:
           resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+      
+      - name: Verify Cluster
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
 
       - name: Create Env File
         run: |
           cat <<EOF > .env
+          ENVIRONMENT=${ENVIRONMENT}
           NAMESPACE=${NAMESPACE}
           DOMAIN_NAME=${DOMAIN_NAME}
           REDIS_IMAGE=${REDIS_IMAGE}
           MONGO_IMAGE=${MONGO_IMAGE}
+          BACKEND_IMAGE=${BACKEND_IMAGE}
+          FRONTEND_IMAGE=${FRONTEND_IMAGE}
+          IMAGE_TAG=${IMAGE_TAG}
           EOF
+
+          echo "Generated .env file:"
+          cat .env
 
       - name: Deploy Application
         env:
-          FORCE_INGRESS_REINSTALL: "true"
+          FORCE_INGRESS_REINSTALL: "false"
         run: |
           chmod +x scripts/deploy.sh
           ./scripts/deploy.sh
+
+      - name: Verify Backend Rollout
+        run: |
+          kubectl rollout status deployment/backend \
+            -n "${NAMESPACE}" \
+            --timeout=300s
+
+      - name: Verify Frontend Rollout
+        run: |
+          kubectl rollout status deployment/frontend \
+            -n "${NAMESPACE}" \
+            --timeout=300s
+
+      - name: Show Resources
+        run: |
+          kubectl get all -n "${NAMESPACE}"
