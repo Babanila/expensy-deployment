@@ -42,6 +42,11 @@ IMAGE_TAG="${IMAGE_TAG:-latest}"
 INGRESS_NAMESPACE="ingress-nginx"
 
 
+DNS_RESOURCE_GROUP="${DNS_RESOURCE_GROUP:-dns-rg}"
+DNS_ZONE="${DNS_ZONE:-azure.ironlabs.online}"
+DNS_RECORD="${DNS_RECORD:-baba}"
+TTL=300
+
 # ==========================================
 # VALIDATE REQUIRED VARIABLES
 # ==========================================
@@ -328,3 +333,74 @@ if [[ -n "${EXTERNAL_IP}" ]]; then
   echo "http://${EXTERNAL_IP}"
 
 fi
+
+
+
+# ==========================================
+# CREATE OR UPDATE DNS A RECORD
+# ==========================================
+echo ""
+echo "▶️ Checking if DNS record exists..."
+
+RECORD_EXISTS=$(
+  az network dns record-set a show \
+    --resource-group "$DNS_RESOURCE_GROUP" \
+    --zone-name "$DNS_ZONE" \
+    --name "$DNS_RECORD" \
+    --query "name" \
+    --output tsv 2>/dev/null || true
+)
+
+if [ -n "$RECORD_EXISTS" ]; then
+  echo "ℹ️ Record exists. Removing old A records..."
+
+  EXISTING_IPS=$(
+    az network dns record-set a show \
+      --resource-group "$DNS_RESOURCE_GROUP" \
+      --zone-name "$DNS_ZONE" \
+      --name "$DNS_RECORD" \
+      --query "arecords[].ipv4Address" \
+      --output tsv
+  )
+
+  for ip in $EXISTING_IPS; do
+    echo "🗑 Removing existing IP: $ip"
+
+    az network dns record-set a remove-record \
+      --resource-group "$DNS_RESOURCE_GROUP" \
+      --zone-name "$DNS_ZONE" \
+      --record-set-name "$DNS_RECORD" \
+      --ipv4-address "$ip"
+  done
+else
+  echo "ℹ️ Record does not exist. Creating record set..."
+
+  az network dns record-set a create \
+    --resource-group "$DNS_RESOURCE_GROUP" \
+    --zone-name "$DNS_ZONE" \
+    --name "$DNS_RECORD" \
+    --ttl "$TTL" \
+    --output none
+fi
+
+echo ""
+echo "▶️ Creating/updating A record '$DNS_RECORD' → '$EXTERNAL_IP' ..."
+
+az network dns record-set a add-record \
+  --resource-group "$DNS_RESOURCE_GROUP" \
+  --zone-name "$DNS_ZONE" \
+  --record-set-name "$DNS_RECORD" \
+  --ipv4-address "$EXTERNAL_IP"
+
+echo ""
+echo "✔️ DNS A record set successfully"
+echo "🌍 $DNS_RECORD.$DNS_ZONE → $EXTERNAL_IP"
+
+echo ""
+echo "▶️ Verifying DNS record..."
+
+az network dns record-set a show \
+  --resource-group "$DNS_RESOURCE_GROUP" \
+  --zone-name "$DNS_ZONE" \
+  --name "$DNS_RECORD" \
+  --output table
