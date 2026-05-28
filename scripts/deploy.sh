@@ -426,7 +426,7 @@ helm upgrade --install kube-prometheus-stack \
   --create-namespace \
   -f "${K8S_DIR}/monitoring/values.yaml" \
   --wait \
-  --timeout 20m \
+  --timeout 45m \
   --atomic
 
 success "kube-prometheus-stack installed."

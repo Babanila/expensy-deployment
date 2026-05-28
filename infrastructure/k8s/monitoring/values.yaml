@@ -30,6 +30,7 @@ prometheus:
     evaluationInterval: 15s
     serviceMonitorSelectorNilUsesHelmValues: false
     storageSpec:
+      grafana.persistence.enabled: true
       volumeClaimTemplate:
         spec:
           accessModes:
