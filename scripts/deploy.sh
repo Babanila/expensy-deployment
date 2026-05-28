@@ -424,10 +424,11 @@ helm upgrade --install kube-prometheus-stack \
   prometheus-community/kube-prometheus-stack \
   --namespace "${MONITORING_NAMESPACE}" \
   --create-namespace \
+  --set crds.enabled=true \
   -f "${K8S_DIR}/monitoring/values.yaml" \
   --wait \
-  --timeout 45m \
-  --atomic
+  --wait-for-jobs \
+  --timeout 45m
 
 success "kube-prometheus-stack installed."
 

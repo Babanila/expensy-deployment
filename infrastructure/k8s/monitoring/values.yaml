@@ -21,6 +21,7 @@ grafana:
     security:
       cookie_secure: true
 
+
 prometheus:
   enabled: true
   prometheusSpec:
@@ -30,7 +31,6 @@ prometheus:
     evaluationInterval: 15s
     serviceMonitorSelectorNilUsesHelmValues: false
     storageSpec:
-      grafana.persistence.enabled: true
       volumeClaimTemplate:
         spec:
           accessModes:
@@ -38,6 +38,7 @@ prometheus:
           resources:
             requests:
               storage: 50Gi
+
 
 alertmanager:
   enabled: true
@@ -50,6 +51,7 @@ alertmanager:
           resources:
             requests:
               storage: 10Gi
+
 
 kube-state-metrics:
   enabled: true
