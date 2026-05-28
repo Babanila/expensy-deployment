@@ -417,11 +417,9 @@ az network dns record-set a show \
 echo ""
 info "Creating Grafana admin secret..."
 
-kubectl create secret generic grafana-admin-secret \
-  --namespace "${MONITORING_NAMESPACE}" \
-  --from-literal=admin-user="${GRAFANA_ADMIN_USER:-admin}" \
-  --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD:-admin123}" \
-  --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic grafana-admin-secret -n monitoring \
+  --from-literal=admin-user=admin \
+  --from-literal=admin-password=admin123
 
 success "Grafana admin secret ready."
 
