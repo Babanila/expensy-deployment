@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -Eeuo pipefail
 
@@ -11,20 +11,21 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-
 info() { echo -e "${BLUE}[INFO]${NC} $*"; }
 success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
 warn() { echo -e "${YELLOW}[WARNING]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+trap 'error "Deployment failed on line $LINENO"' ERR
 
 # ==========================================
 # LOAD ENV
 # ==========================================
-if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+if [[ -f .env ]]; then
+  set -a
+  source .env
+  set +a
 fi
-
 
 # ==========================================
 # VARIABLES
@@ -34,103 +35,109 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 K8S_DIR="${ROOT_DIR}/infrastructure/k8s"
 
 NAMESPACE="${NAMESPACE:-expensy}"
+MONITORING_NAMESPACE="${MONITORING_NAMESPACE:-monitoring}"
+INGRESS_NAMESPACE="${INGRESS_NAMESPACE:-ingress-nginx}"
+
 REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}"
 MONGO_IMAGE="${MONGO_IMAGE:-mongo:7}"
-BACKEND_IMAGE="${BACKEND_IMAGE}"
-FRONTEND_IMAGE="${FRONTEND_IMAGE}"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
-INGRESS_NAMESPACE="ingress-nginx"
 
-# DNS VARIABLES
+BACKEND_IMAGE="${BACKEND_IMAGE:-}"
+FRONTEND_IMAGE="${FRONTEND_IMAGE:-}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+
 DNS_RESOURCE_GROUP="${DNS_RESOURCE_GROUP:-dns-rg}"
 DNS_ZONE="${DNS_ZONE:-azure.ironlabs.online}"
 DNS_RECORD="${DNS_RECORD:-baba}"
-TTL=300
+TTL="${TTL:-300}"
 
-# PROMETHEUS & GRAFANA
-MONITORING_NAMESPACE="monitoring"
-
+PROM_RELEASE="kube-prometheus-stack"
+INGRESS_RELEASE="ingress-nginx"
+CERT_MANAGER_RELEASE="cert-manager"
 
 # ==========================================
-# VALIDATE REQUIRED VARIABLES
+# VALIDATION
 # ==========================================
 required_vars=(
-  NAMESPACE
   BACKEND_IMAGE
   FRONTEND_IMAGE
-  IMAGE_TAG
 )
 
 for var in "${required_vars[@]}"; do
   if [[ -z "${!var:-}" ]]; then
-    error "Required environment variable missing: ${var}"
+    error "Missing required env variable: ${var}"
     exit 1
   fi
 done
 
-
 # ==========================================
-# SHOW DEPLOYMENT VARIABLES
+# HELPERS
 # ==========================================
-echo ""
-info "Deployment Configuration"
-
-echo "Environment: ${ENVIRONMENT:-unknown}"
-echo "Namespace: ${NAMESPACE}"
-echo "Backend Image: ${BACKEND_IMAGE}:${IMAGE_TAG}"
-echo "Frontend Image: ${FRONTEND_IMAGE}:${IMAGE_TAG}"
-echo "Mongo Image: ${MONGO_IMAGE}"
-echo "Redis Image: ${REDIS_IMAGE}"
-
-
-# HELPERS FUNCTIONS
 check_command() {
   command -v "$1" >/dev/null 2>&1
+}
+
+ensure_namespace() {
+  local ns="$1"
+
+  if kubectl get ns "$ns" >/dev/null 2>&1; then
+    success "Namespace '$ns' already exists"
+  else
+    info "Creating namespace '$ns'"
+    kubectl create namespace "$ns"
+  fi
+}
+
+wait_for_release_unlock() {
+  local release="$1"
+  local namespace="$2"
+
+  info "Checking Helm release lock: $release"
+
+  for i in {1..30}; do
+    status=$(helm status "$release" -n "$namespace" -o json 2>/dev/null | jq -r '.info.status' || true)
+
+    if [[ "$status" != pending-* ]]; then
+      success "Helm release unlocked"
+      return 0
+    fi
+
+    warn "Release locked ($status). Waiting... ($i/30)"
+    sleep 10
+  done
+
+  warn "Release still locked. Cleaning Helm secrets..."
+
+  kubectl delete secret -n "$namespace" \
+    -l owner=helm,name="$release" \
+    --ignore-not-found=true || true
+}
+
+create_or_update_secret() {
+  local namespace="$1"
+  local secret_name="$2"
+
+  shift 2
+
+  kubectl create secret generic "$secret_name" \
+    -n "$namespace" \
+    "$@" \
+    --dry-run=client -o yaml | kubectl apply -f -
 }
 
 apply_manifest_dir() {
   local dir="$1"
 
+  [[ -d "$dir" ]] || return 0
+
   for file in "$dir"/*.yaml; do
-    [ -f "$file" ] || continue
+    [[ -f "$file" ]] || continue
 
-    echo ""
-    info "Rendering $(basename "$file")"
-    rendered_manifest=$(envsubst < "$file")
-
-    echo "$rendered_manifest"
-
-    echo ""
     info "Applying $(basename "$file")"
-    echo "$rendered_manifest" | kubectl apply -f -
+
+    envsubst < "$file" | kubectl apply -f -
   done
 }
 
-# CLEAN OLD NON-HELM INGRESS RESOURCES
-cleanup_old_ingress() {
-  warn "Cleaning old ingress-nginx resources..."
-
-  # Namespace resources
-  kubectl delete namespace "${INGRESS_NAMESPACE}" --ignore-not-found=true --wait=true || true
-
-  # Cluster-scoped resources
-  kubectl delete clusterrole ingress-nginx --ignore-not-found=true || true
-  kubectl delete clusterrolebinding ingress-nginx --ignore-not-found=true || true
-  kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true || true
-  kubectl delete mutatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true || true
-  kubectl delete ingressclass nginx --ignore-not-found=true || true
-
-  # Optional cleanup
-  kubectl delete crd ingressclasses.networking.k8s.io --ignore-not-found=true || true
-
-  echo ""
-  info "Waiting for ingress-nginx cleanup..."
-  sleep 15
-  success "Old ingress-nginx resources removed."
-}
-
-
-# INSTALL kubectl
 install_kubectl() {
   if check_command kubectl; then
     success "kubectl already installed"
@@ -139,13 +146,13 @@ install_kubectl() {
 
   info "Installing kubectl..."
   curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
   chmod +x kubectl
   sudo mv kubectl /usr/local/bin/
+
   success "kubectl installed"
 }
 
-
-# INSTALL HELM
 install_helm() {
   if check_command helm; then
     success "helm already installed"
@@ -154,7 +161,43 @@ install_helm() {
 
   info "Installing helm..."
   curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
   success "helm installed"
+}
+
+ensure_helm_repo() {
+  local name="$1"
+  local url="$2"
+
+  if helm repo list | grep -q "^${name}"; then
+    success "Helm repo '$name' already exists"
+  else
+    helm repo add "$name" "$url"
+  fi
+}
+
+wait_for_external_ip() {
+  local svc="$1"
+  local ns="$2"
+  local ip=""
+
+  info "Waiting for external IP..."
+
+  for i in {1..60}; do
+    ip=$(kubectl get svc "$svc" \
+      -n "$ns" \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}' \
+      2>/dev/null || true)
+
+    if [[ -n "$ip" ]]; then
+      echo "$ip"
+      return 0
+    fi
+
+    sleep 10
+  done
+
+  return 1
 }
 
 
@@ -166,142 +209,118 @@ install_helm
 
 
 # ==========================================
+# SHOW CONFIG
+# ==========================================
+echo ""
+info "Deployment Configuration"
+
+echo "Namespace: ${NAMESPACE}"
+echo "Backend Image: ${BACKEND_IMAGE}:${IMAGE_TAG}"
+echo "Frontend Image: ${FRONTEND_IMAGE}:${IMAGE_TAG}"
+
+
+# ==========================================
 # VERIFY CLUSTER
 # ==========================================
 echo ""
-info "Connected Cluster Nodes"
+info "Connected Cluster"
+
 kubectl get nodes
 
+# ==========================================
+# ENSURE NAMESPACES
+# ==========================================
+ensure_namespace "$NAMESPACE"
+ensure_namespace "$INGRESS_NAMESPACE"
+ensure_namespace "$MONITORING_NAMESPACE"
+ensure_namespace "cert-manager"
 
-# =========================================
-# INSTALL NGINX INGRESS CONTROLLER
-# =========================================
-echo ""
-info "Checking ingress-nginx installation..."
 
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+# ==========================================
+# HELM REPOS
+# ==========================================
+ensure_helm_repo ingress-nginx https://kubernetes.github.io/ingress-nginx
+ensure_helm_repo jetstack https://charts.jetstack.io
+ensure_helm_repo prometheus-community https://prometheus-community.github.io/helm-charts
+
 helm repo update
 
-# CHECK EXISTING HELM RELEASE
-if helm status ingress-nginx \
-  -n "${INGRESS_NAMESPACE}" >/dev/null 2>&1; then
-  success "ingress-nginx already installed."
-else
-  warn "ingress-nginx Helm release not found."
 
-  if kubectl get clusterrole ingress-nginx \
-    >/dev/null 2>&1; then
+# ==========================================
+# INSTALL INGRESS
+# ==========================================
+echo ""
+info "Installing ingress-nginx"
 
-    warn "Old non-Helm ingress resources detected."
-    kubectl config current-context
+wait_for_release_unlock "$INGRESS_RELEASE" "$INGRESS_NAMESPACE"
 
-    if [[ "${FORCE_INGRESS_REINSTALL:-false}" == "true" ]]; then
-      cleanup_old_ingress
-    else
-      error "Old ingress-nginx resources exist."
-      echo ""
-      warn "Run with:"
-      echo "export FORCE_INGRESS_REINSTALL=true"
-      exit 1
-    fi
-  fi
-
-  # INSTALL INGRESS-NGINX
-  info "Installing ingress-nginx..."
-
-  helm upgrade --install ingress-nginx \
+helm upgrade --install "$INGRESS_RELEASE" \
   ingress-nginx/ingress-nginx \
-  --namespace "${INGRESS_NAMESPACE}" \
+  --namespace "$INGRESS_NAMESPACE" \
   --create-namespace \
   --set controller.replicaCount=2 \
   --set controller.service.type=LoadBalancer \
   --set controller.admissionWebhooks.enabled=true \
   --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
   --wait \
-  --timeout 15m
+  --timeout 20m
 
-  success "ingress-nginx installed successfully."
-fi
+success "ingress-nginx ready"
 
 
 # ==========================================
 # WAIT FOR INGRESS
 # ==========================================
-echo ""
-info "Waiting for ingress controller..."
-
 kubectl wait \
-  --namespace "${INGRESS_NAMESPACE}" \
+  --namespace "$INGRESS_NAMESPACE" \
   --for=condition=ready pod \
   --selector=app.kubernetes.io/component=controller \
   --timeout=300s
 
 
 # ==========================================
-# INSTALL CERT-MANAGER
+# INSTALL CERT MANAGER
 # ==========================================
 echo ""
-info "Installing cert-manager..."
-if helm status cert-manager -n cert-manager >/dev/null 2>&1; then
-  success "cert-manager already installed."
-else
-  helm repo add jetstack https://charts.jetstack.io
-  helm repo update
+info "Installing cert-manager"
 
-  helm upgrade --install cert-manager jetstack/cert-manager \
-    --namespace cert-manager \
-    --create-namespace \
-    --set installCRDs=true \
-    --wait \
-    --timeout 10m
-fi
+wait_for_release_unlock "$CERT_MANAGER_RELEASE" "cert-manager"
+
+helm upgrade --install "$CERT_MANAGER_RELEASE" \
+  jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set installCRDs=true \
+  --wait \
+  --timeout 15m
+
+success "cert-manager ready"
+
 
 # ==========================================
 # WAIT FOR EXTERNAL IP
 # ==========================================
-echo ""
-info "Waiting for external IP..."
-EXTERNAL_IP=""
+EXTERNAL_IP=$(
+  wait_for_external_ip \
+    ingress-nginx-controller \
+    "$INGRESS_NAMESPACE"
+) || true
 
-for i in {1..60}; do
-  EXTERNAL_IP=$(kubectl get svc ingress-nginx-controller \
-    -n "${INGRESS_NAMESPACE}" \
-    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' \
-    2>/dev/null || true)
-
-  if [[ -n "${EXTERNAL_IP}" ]]; then
-    success "Ingress External IP:"
-    echo "http://${EXTERNAL_IP}"
-    break
-  fi
-
-  echo "Waiting for external IP... (${i}/60)"
-  sleep 10
-done
-
-if [[ -z "${EXTERNAL_IP}" ]]; then
+if [[ -z "${EXTERNAL_IP:-}" ]]; then
   warn "External IP not assigned yet"
-  warn "Check ingress controller status using:"
-  echo "kubectl get svc -n ${INGRESS_NAMESPACE}"
 else
-  success "Ingress External IP:"
-  echo "http://${EXTERNAL_IP}"
+  success "Ingress External IP: ${EXTERNAL_IP}"
 fi
 
 
 # ==========================================
-# CREATE NAMESPACE
+# APPLY APP RESOURCES
 # ==========================================
 echo ""
-info "Creating namespace..."
-envsubst < "${K8S_DIR}/namespace.yaml" | kubectl apply -f -
+info "Deploying application"
+
 kubectl config set-context --current --namespace="$NAMESPACE"
-success "Namespace created"
 
-
-# ==========================================
-# DEPLOY RESOURCES
-# ==========================================
 apply_manifest_dir "${K8S_DIR}/secrets"
 apply_manifest_dir "${K8S_DIR}/configmaps"
 apply_manifest_dir "${K8S_DIR}/mongo"
@@ -312,52 +331,43 @@ apply_manifest_dir "${K8S_DIR}/ingress"
 
 
 # ==========================================
-# WAIT FOR DEPLOYMENTS
+# WAIT FOR ROLLOUTS
 # ==========================================
 echo ""
-info "Waiting for backend..."
-kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=300s
+info "Waiting for backend rollout"
+
+kubectl rollout status deployment/backend \
+  -n "$NAMESPACE" \
+  --timeout=300s
 
 echo ""
-info "Waiting for frontend..."
-kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=300s
+info "Waiting for frontend rollout"
 
-
-# ==========================================
-# SHOW RESOURCES
-# ==========================================
-echo ""
-success "Deployment completed successfully 🚀"
-
-echo ""
-kubectl get all -n "$NAMESPACE"
-echo ""
-
-if [[ -n "${EXTERNAL_IP}" ]]; then
-  success "Application URL:"
-  echo "http://${EXTERNAL_IP}"
-
-fi
-
+kubectl rollout status deployment/frontend \
+  -n "$NAMESPACE" \
+  --timeout=300s
 
 
 # ==========================================
-# CREATE OR UPDATE DNS A RECORD
+# DNS RECORD
 # ==========================================
-echo ""
-echo "▶️ Checking if DNS record exists..."
+if [[ -n "${EXTERNAL_IP:-}" ]]; then
 
-RECORD_EXISTS=$(
-  az network dns record-set a show \
+  echo ""
+  info "Ensuring DNS record"
+
+  if ! az network dns record-set a show \
     --resource-group "$DNS_RESOURCE_GROUP" \
     --zone-name "$DNS_ZONE" \
-    --name "$DNS_RECORD" \
-    --query "name" \
-    --output tsv 2>/dev/null || true
-)
+    --name "$DNS_RECORD" >/dev/null 2>&1; then
 
-if [ -n "$RECORD_EXISTS" ]; then
-  echo "ℹ️ Record exists. Removing old A records..."
+    az network dns record-set a create \
+      --resource-group "$DNS_RESOURCE_GROUP" \
+      --zone-name "$DNS_ZONE" \
+      --name "$DNS_RECORD" \
+      --ttl "$TTL" \
+      --output none
+  fi
 
   EXISTING_IPS=$(
     az network dns record-set a show \
@@ -365,102 +375,72 @@ if [ -n "$RECORD_EXISTS" ]; then
       --zone-name "$DNS_ZONE" \
       --name "$DNS_RECORD" \
       --query "arecords[].ipv4Address" \
-      --output tsv
+      --output tsv 2>/dev/null || true
   )
 
-  for ip in $EXISTING_IPS; do
-    echo "🗑 Removing existing IP: $ip"
+  if ! echo "$EXISTING_IPS" | grep -q "$EXTERNAL_IP"; then
 
-    az network dns record-set a remove-record \
+    for ip in $EXISTING_IPS; do
+      az network dns record-set a remove-record \
+        --resource-group "$DNS_RESOURCE_GROUP" \
+        --zone-name "$DNS_ZONE" \
+        --record-set-name "$DNS_RECORD" \
+        --ipv4-address "$ip" || true
+    done
+
+    az network dns record-set a add-record \
       --resource-group "$DNS_RESOURCE_GROUP" \
       --zone-name "$DNS_ZONE" \
       --record-set-name "$DNS_RECORD" \
-      --ipv4-address "$ip"
-  done
-else
-  echo "ℹ️ Record does not exist. Creating record set..."
+      --ipv4-address "$EXTERNAL_IP"
+  fi
 
-  az network dns record-set a create \
-    --resource-group "$DNS_RESOURCE_GROUP" \
-    --zone-name "$DNS_ZONE" \
-    --name "$DNS_RECORD" \
-    --ttl "$TTL" \
-    --output none
+  success "DNS configured"
+
 fi
 
+
+# ==========================================
+# GRAFANA SECRET
+# ==========================================
 echo ""
-echo "▶️ Creating/updating A record '$DNS_RECORD' → '$EXTERNAL_IP' ..."
+info "Ensuring Grafana admin secret"
 
-az network dns record-set a add-record \
-  --resource-group "$DNS_RESOURCE_GROUP" \
-  --zone-name "$DNS_ZONE" \
-  --record-set-name "$DNS_RECORD" \
-  --ipv4-address "$EXTERNAL_IP"
-
-echo ""
-echo "✔️ DNS A record set successfully"
-echo "🌍 $DNS_RECORD.$DNS_ZONE → $EXTERNAL_IP"
-
-echo ""
-echo "▶️ Verifying DNS record..."
-
-az network dns record-set a show \
-  --resource-group "$DNS_RESOURCE_GROUP" \
-  --zone-name "$DNS_ZONE" \
-  --name "$DNS_RECORD" \
-  --output table
-
-
-# =========================================
-# CREATE GRAFANA ADMIN SECRET
-# =========================================
-echo ""
-info "Creating Grafana admin secret..."
-
-kubectl create secret generic grafana-admin-secret -n monitoring \
+create_or_update_secret \
+  "$MONITORING_NAMESPACE" \
+  grafana-admin-secret \
   --from-literal=admin-user=admin \
   --from-literal=admin-password=admin123
 
-success "Grafana admin secret ready."
+success "Grafana secret ready"
 
 
-# =========================================
-# INSTALL PROMETHEUS STACK
-# =========================================
+# ==========================================
+# INSTALL KUBE PROMETHEUS STACK
+# ==========================================
 echo ""
-info "Installing kube-prometheus-stack..."
+info "Installing kube-prometheus-stack"
 
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
-helm repo update
+wait_for_release_unlock "$PROM_RELEASE" "$MONITORING_NAMESPACE"
 
-
-helm upgrade --install kube-prometheus-stack \
+helm upgrade --install "$PROM_RELEASE" \
   prometheus-community/kube-prometheus-stack \
-  --namespace "${MONITORING_NAMESPACE}" \
+  --namespace "$MONITORING_NAMESPACE" \
   --create-namespace \
   -f "${K8S_DIR}/monitoring/values.yaml" \
   --wait \
+  --wait-for-jobs \
   --timeout 30m \
-  --debug
+  --atomic
 
-# helm upgrade --install kube-prometheus-stack \
-#   prometheus-community/kube-prometheus-stack \
-#   --namespace "${MONITORING_NAMESPACE}" \
-#   --create-namespace \
-#   --set crds.enabled=true \
-#   -f "${K8S_DIR}/monitoring/values.yaml" \
-#   --wait \
-#   --wait-for-jobs \
-#   --timeout 30m
-
-success "kube-prometheus-stack installed."
+success "kube-prometheus-stack ready"
 
 
-# =========================================
+# ==========================================
 # WAIT FOR CRDs
-# =========================================
+# ==========================================
 echo ""
-info "Waiting for Prometheus Operator CRDs..."
+info "Waiting for Prometheus CRDs"
 
 CRDS=(
   "servicemonitors.monitoring.coreos.com"
@@ -469,10 +449,8 @@ CRDS=(
 )
 
 for CRD in "${CRDS[@]}"; do
-  echo "Checking CRD: ${CRD}"
 
-  until kubectl get crd "${CRD}" >/dev/null 2>&1; do
-    echo "Waiting for CRD ${CRD}..."
+  until kubectl get crd "$CRD" >/dev/null 2>&1; do
     sleep 5
   done
 
@@ -482,23 +460,41 @@ for CRD in "${CRDS[@]}"; do
     "crd/${CRD}"
 done
 
-success "Prometheus Operator CRDs ready."
+success "CRDs ready"
 
 
-# =========================================
-# APPLY SERVICEMONITOR
-# =========================================
+# ==========================================
+# APPLY MONITORING RESOURCES
+# ==========================================
 echo ""
-info "Applying ServiceMonitor..."
+info "Applying monitoring resources"
+
 apply_manifest_dir "${K8S_DIR}/monitoring/servicemonitors"
-success "ServiceMonitors applied."
-
-
-# =========================================
-# APPLY MONITORING INGRESS
-# =========================================
-echo ""
-info "Applying Prometheus & Grafana ingress..."
 apply_manifest_dir "${K8S_DIR}/monitoring/ingress"
-success "Monitoring ingress applied."
 
+
+# ==========================================
+# VERIFY MONITORING
+# ==========================================
+echo ""
+info "Monitoring Pods"
+
+kubectl get pods -n "$MONITORING_NAMESPACE"
+
+
+# ==========================================
+# FINAL OUTPUT
+# ==========================================
+echo ""
+success "Deployment completed successfully 🚀"
+
+echo ""
+kubectl get all -n "$NAMESPACE"
+
+echo ""
+
+if [[ -n "${EXTERNAL_IP:-}" ]]; then
+  success "Application URL"
+  echo "http://${EXTERNAL_IP}"
+  echo "http://${DNS_RECORD}.${DNS_ZONE}"
+fi
