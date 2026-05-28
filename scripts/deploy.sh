@@ -11,9 +11,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-info() { echo -e "${BLUE}[INFO]${NC} $*"; }
-success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
-warn() { echo -e "${YELLOW}[WARNING]${NC} $*"; }
+info() { echo -e "${BLUE}[INFO]${NC} $*" >&2; }
+success() { echo -e "${GREEN}[SUCCESS]${NC} $*" >&2; }
+warn() { echo -e "${YELLOW}[WARNING]${NC} $*" >&2; }
 error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 trap 'error "Deployment failed on line $LINENO"' ERR
@@ -358,18 +358,23 @@ echo ""
 # ==========================================
 echo ""
 echo "▶️ Checking if DNS record exists..."
+if [[ -n "${EXTERNAL_IP:-}" ]]; then
 
-RECORD_EXISTS=$(
-  az network dns record-set a show \
+  echo ""
+  info "Ensuring DNS record"
+
+  if ! az network dns record-set a show \
     --resource-group "$DNS_RESOURCE_GROUP" \
     --zone-name "$DNS_ZONE" \
-    --name "$DNS_RECORD" \
-    --query "name" \
-    --output tsv 2>/dev/null || true
-)
+    --name "$DNS_RECORD" >/dev/null 2>&1; then
 
-if [ -n "$RECORD_EXISTS" ]; then
-  echo "ℹ️ Record exists. Removing old A records..."
+    az network dns record-set a create \
+      --resource-group "$DNS_RESOURCE_GROUP" \
+      --zone-name "$DNS_ZONE" \
+      --name "$DNS_RECORD" \
+      --ttl "$TTL" \
+      --output none
+  fi
 
   EXISTING_IPS=$(
     az network dns record-set a show \
@@ -377,51 +382,28 @@ if [ -n "$RECORD_EXISTS" ]; then
       --zone-name "$DNS_ZONE" \
       --name "$DNS_RECORD" \
       --query "arecords[].ipv4Address" \
-      --output tsv
+      --output tsv 2>/dev/null || true
   )
 
-  for ip in $EXISTING_IPS; do
-    echo "🗑 Removing existing IP: $ip"
+  if ! echo "$EXISTING_IPS" | grep -q "$EXTERNAL_IP"; then
 
-    az network dns record-set a remove-record \
+    for ip in $EXISTING_IPS; do
+      az network dns record-set a remove-record \
+        --resource-group "$DNS_RESOURCE_GROUP" \
+        --zone-name "$DNS_ZONE" \
+        --record-set-name "$DNS_RECORD" \
+        --ipv4-address "$ip" || true
+    done
+
+    az network dns record-set a add-record \
       --resource-group "$DNS_RESOURCE_GROUP" \
       --zone-name "$DNS_ZONE" \
       --record-set-name "$DNS_RECORD" \
-      --ipv4-address "$ip"
-  done
-else
-  echo "ℹ️ Record does not exist. Creating record set..."
+      --ipv4-address "$EXTERNAL_IP"
+  fi
 
-  az network dns record-set a create \
-    --resource-group "$DNS_RESOURCE_GROUP" \
-    --zone-name "$DNS_ZONE" \
-    --name "$DNS_RECORD" \
-    --ttl "$TTL" \
-    --output none
+  success "DNS configured"
 fi
-
-echo ""
-echo "▶️ Creating/updating A record '$DNS_RECORD' → '$EXTERNAL_IP' ..."
-
-az network dns record-set a add-record \
-  --resource-group "$DNS_RESOURCE_GROUP" \
-  --zone-name "$DNS_ZONE" \
-  --record-set-name "$DNS_RECORD" \
-  --ipv4-address "$EXTERNAL_IP"
-
-echo ""
-echo "✔️ DNS A record set successfully"
-echo "🌍 $DNS_RECORD.$DNS_ZONE → $EXTERNAL_IP"
-
-echo ""
-echo "▶️ Verifying DNS record..."
-
-az network dns record-set a show \
-  --resource-group "$DNS_RESOURCE_GROUP" \
-  --zone-name "$DNS_ZONE" \
-  --name "$DNS_RECORD" \
-  --output table
-
 
 
 # ==========================================
