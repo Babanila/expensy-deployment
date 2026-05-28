@@ -412,6 +412,21 @@ az network dns record-set a show \
 
 
 # =========================================
+# CREATE GRAFANA ADMIN SECRET
+# =========================================
+echo ""
+info "Creating Grafana admin secret..."
+
+kubectl create secret generic grafana-admin-secret \
+  --namespace "${MONITORING_NAMESPACE}" \
+  --from-literal=admin-user="${GRAFANA_ADMIN_USER:-admin}" \
+  --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD:-admin123}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+success "Grafana admin secret ready."
+
+
+# =========================================
 # INSTALL PROMETHEUS STACK
 # =========================================
 echo ""
@@ -420,18 +435,25 @@ info "Installing kube-prometheus-stack..."
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 helm repo update
 
-info "Validating Helm chart..."
-helm lint prometheus-community/kube-prometheus-stack -f "${K8S_DIR}/monitoring/values.yaml"
 
 helm upgrade --install kube-prometheus-stack \
   prometheus-community/kube-prometheus-stack \
   --namespace "${MONITORING_NAMESPACE}" \
   --create-namespace \
-  --set crds.enabled=true \
   -f "${K8S_DIR}/monitoring/values.yaml" \
   --wait \
-  --wait-for-jobs \
-  --timeout 30m
+  --timeout 30m \
+  --debug
+
+# helm upgrade --install kube-prometheus-stack \
+#   prometheus-community/kube-prometheus-stack \
+#   --namespace "${MONITORING_NAMESPACE}" \
+#   --create-namespace \
+#   --set crds.enabled=true \
+#   -f "${K8S_DIR}/monitoring/values.yaml" \
+#   --wait \
+#   --wait-for-jobs \
+#   --timeout 30m
 
 success "kube-prometheus-stack installed."
 
