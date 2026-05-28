@@ -466,9 +466,8 @@ success "Prometheus Operator CRDs ready."
 # =========================================
 echo ""
 info "Applying ServiceMonitor..."
-envsubst < "${K8S_DIR}/backend/servicemonitor.yaml" | kubectl apply -f -
-
-success "ServiceMonitor applied."
+apply_manifest_dir "${K8S_DIR}/monitoring/servicemonitors"
+success "ServiceMonitors applied."
 
 
 # =========================================
@@ -476,9 +475,6 @@ success "ServiceMonitor applied."
 # =========================================
 echo ""
 info "Applying Prometheus & Grafana ingress..."
-
-envsubst < "${K8S_DIR}/monitoring/prometheus-ingress.yaml" | kubectl apply -f -
-envsubst < "${K8S_DIR}/monitoring/grafana-ingress.yaml" | kubectl apply -f -
-
-success "Prometheus & Grafana ingress applied."
+apply_manifest_dir "${K8S_DIR}/monitoring/ingress"
+success "Monitoring ingress applied."
 
