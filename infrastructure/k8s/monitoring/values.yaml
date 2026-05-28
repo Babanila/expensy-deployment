@@ -21,7 +21,6 @@ grafana:
     security:
       cookie_secure: true
 
-
 prometheus:
   enabled: true
   prometheusSpec:
@@ -39,7 +38,6 @@ prometheus:
             requests:
               storage: 50Gi
 
-
 alertmanager:
   enabled: true
   alertmanagerSpec:
@@ -51,7 +49,6 @@ alertmanager:
           resources:
             requests:
               storage: 10Gi
-
 
 kube-state-metrics:
   enabled: true
