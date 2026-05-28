@@ -1,26 +1,36 @@
 grafana:
   enabled: true
+
   admin:
     existingSecret: grafana-admin-secret
     userKey: admin-user
     passwordKey: admin-password
+
   service:
     type: ClusterIP
+
   persistence:
     enabled: true
     type: pvc
-    storageClassName: default
+    storageClassName: managed-csi
     accessModes:
       - ReadWriteOnce
     size: 5Gi
 
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+
 prometheus:
   prometheusSpec:
     retention: 7d
+
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: default
+          storageClassName: managed-csi
           accessModes:
             - ReadWriteOnce
           resources:
@@ -29,11 +39,12 @@ prometheus:
 
 alertmanager:
   enabled: true
+
   alertmanagerSpec:
     storage:
       volumeClaimTemplate:
         spec:
-          storageClassName: default
+          storageClassName: managed-csi
           accessModes:
             - ReadWriteOnce
           resources:

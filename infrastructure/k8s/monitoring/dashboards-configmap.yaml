@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+
+data:

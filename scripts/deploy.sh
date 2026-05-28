@@ -277,6 +277,49 @@ ensure_dns_a_record() {
   success "DNS configured: ${dns_record}.${dns_zone} -> ${EXTERNAL_IP}"
 }
 
+wait_for_grafana() {
+  local namespace="${1:-monitoring}"
+  local deployment="${2:-kube-prometheus-stack-grafana}"
+  local timeout="${3:-300s}"
+
+  echo ""
+  info "Waiting for Grafana deployment..."
+
+  kubectl rollout status deployment/"${deployment}" \
+    -n "${namespace}" \
+    --timeout="${timeout}"
+
+  echo ""
+  info "Waiting for Grafana pod to become Ready..."
+
+  kubectl wait \
+    --namespace "${namespace}" \
+    --for=condition=ready pod \
+    --selector=app.kubernetes.io/name=grafana \
+    --timeout="${timeout}"
+
+  echo ""
+  info "Waiting for Grafana HTTP endpoint..."
+
+  local retries=30
+
+  for ((i=1; i<=retries; i++)); do
+    if kubectl exec -n "${namespace}" \
+      deployment/"${deployment}" \
+      -- wget -qO- http://localhost:80/api/health >/dev/null 2>&1; then
+
+      success "Grafana is ready."
+      return 0
+    fi
+
+    echo "Waiting for Grafana API... (${i}/${retries})"
+    sleep 10
+  done
+
+  error "Grafana failed to become ready."
+  return 1
+}
+
 
 # ==========================================
 # INSTALL TOOLS
@@ -527,6 +570,18 @@ kubectl get pods -n "$MONITORING_NAMESPACE"
 # ==========================================
 ensure_dns_a_record "$DNS_RESOURCE_GROUP" "$DNS_ZONE" "prometheus.$DNS_RECORD"
 ensure_dns_a_record "$DNS_RESOURCE_GROUP" "$DNS_ZONE" "grafana.$DNS_RECORD"
+
+
+# ==========================================
+# LOAD & APPLY GRAFANA DASHBOARDS
+# ==========================================
+info "Loading Grafana dashboards..."
+
+# Wait explicitly for Grafana
+wait_for_grafana
+
+# Apply dashboard ConfigMaps
+apply_manifest_dir "${K8S_DIR}/monitoring/dashboards"
 
 
 # ==========================================
