@@ -68,4 +68,4 @@ jobs:
           cache-to: type=gha,mode=max
 
           build-args: |
-            NEXT_PUBLIC_API_URL=http://${{ vars.DOMAIN_NAME }}
+            NEXT_PUBLIC_API_URL=https://${{ vars.DOMAIN_NAME }}
