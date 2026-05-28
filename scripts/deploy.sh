@@ -335,39 +335,41 @@ apply_manifest_dir "${K8S_DIR}/ingress"
 # ==========================================
 echo ""
 info "Waiting for backend rollout"
-
-kubectl rollout status deployment/backend \
-  -n "$NAMESPACE" \
-  --timeout=300s
+kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=300s
 
 echo ""
 info "Waiting for frontend rollout"
-
-kubectl rollout status deployment/frontend \
-  -n "$NAMESPACE" \
-  --timeout=300s
+kubectl rollout status deployment/frontend -n "$NAMESPACE" --timeout=300s
 
 
 # ==========================================
-# DNS RECORD
+# SHOW RESOURCES
 # ==========================================
-if [[ -n "${EXTERNAL_IP:-}" ]]; then
+echo ""
+success "Manifests deployment completed successfully 🚀"
 
-  echo ""
-  info "Ensuring DNS record"
+echo ""
+kubectl get all -n "$NAMESPACE"
+echo ""
 
-  if ! az network dns record-set a show \
+
+# ==========================================
+# CREATE OR UPDATE DNS RECORD (A RECORD)
+# ==========================================
+echo ""
+echo "▶️ Checking if DNS record exists..."
+
+RECORD_EXISTS=$(
+  az network dns record-set a show \
     --resource-group "$DNS_RESOURCE_GROUP" \
     --zone-name "$DNS_ZONE" \
-    --name "$DNS_RECORD" >/dev/null 2>&1; then
+    --name "$DNS_RECORD" \
+    --query "name" \
+    --output tsv 2>/dev/null || true
+)
 
-    az network dns record-set a create \
-      --resource-group "$DNS_RESOURCE_GROUP" \
-      --zone-name "$DNS_ZONE" \
-      --name "$DNS_RECORD" \
-      --ttl "$TTL" \
-      --output none
-  fi
+if [ -n "$RECORD_EXISTS" ]; then
+  echo "ℹ️ Record exists. Removing old A records..."
 
   EXISTING_IPS=$(
     az network dns record-set a show \
@@ -375,29 +377,51 @@ if [[ -n "${EXTERNAL_IP:-}" ]]; then
       --zone-name "$DNS_ZONE" \
       --name "$DNS_RECORD" \
       --query "arecords[].ipv4Address" \
-      --output tsv 2>/dev/null || true
+      --output tsv
   )
 
-  if ! echo "$EXISTING_IPS" | grep -q "$EXTERNAL_IP"; then
+  for ip in $EXISTING_IPS; do
+    echo "🗑 Removing existing IP: $ip"
 
-    for ip in $EXISTING_IPS; do
-      az network dns record-set a remove-record \
-        --resource-group "$DNS_RESOURCE_GROUP" \
-        --zone-name "$DNS_ZONE" \
-        --record-set-name "$DNS_RECORD" \
-        --ipv4-address "$ip" || true
-    done
-
-    az network dns record-set a add-record \
+    az network dns record-set a remove-record \
       --resource-group "$DNS_RESOURCE_GROUP" \
       --zone-name "$DNS_ZONE" \
       --record-set-name "$DNS_RECORD" \
-      --ipv4-address "$EXTERNAL_IP"
-  fi
+      --ipv4-address "$ip"
+  done
+else
+  echo "ℹ️ Record does not exist. Creating record set..."
 
-  success "DNS configured"
-
+  az network dns record-set a create \
+    --resource-group "$DNS_RESOURCE_GROUP" \
+    --zone-name "$DNS_ZONE" \
+    --name "$DNS_RECORD" \
+    --ttl "$TTL" \
+    --output none
 fi
+
+echo ""
+echo "▶️ Creating/updating A record '$DNS_RECORD' → '$EXTERNAL_IP' ..."
+
+az network dns record-set a add-record \
+  --resource-group "$DNS_RESOURCE_GROUP" \
+  --zone-name "$DNS_ZONE" \
+  --record-set-name "$DNS_RECORD" \
+  --ipv4-address "$EXTERNAL_IP"
+
+echo ""
+echo "✔️ DNS A record set successfully"
+echo "🌍 $DNS_RECORD.$DNS_ZONE → $EXTERNAL_IP"
+
+echo ""
+echo "▶️ Verifying DNS record..."
+
+az network dns record-set a show \
+  --resource-group "$DNS_RESOURCE_GROUP" \
+  --zone-name "$DNS_ZONE" \
+  --name "$DNS_RECORD" \
+  --output table
+
 
 
 # ==========================================
