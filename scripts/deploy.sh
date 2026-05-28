@@ -200,6 +200,83 @@ wait_for_external_ip() {
   return 1
 }
 
+ensure_dns_a_record() {
+  local resource_group="$1"
+  local dns_zone="$2"
+  local dns_record="$3"
+
+  if [[ -z "${EXTERNAL_IP:-}" ]]; then
+    error "EXTERNAL_IP is not set"
+    return 1
+  fi
+
+  echo ""
+  info "Ensuring DNS record: ${dns_record}.${dns_zone} -> ${EXTERNAL_IP}"
+
+  # ----------------------------------------
+  # Create record set if it does not exist
+  # ----------------------------------------
+  if ! az network dns record-set a show \
+    --resource-group "$resource_group" \
+    --zone-name "$dns_zone" \
+    --name "$dns_record" >/dev/null 2>&1; then
+
+    az network dns record-set a create \
+      --resource-group "$resource_group" \
+      --zone-name "$dns_zone" \
+      --name "$dns_record" \
+      --ttl "${TTL:-300}" \
+      --output none
+  fi
+
+  # ----------------------------------------
+  # Get existing A records
+  # ----------------------------------------
+  local existing_ips
+  existing_ips=$(
+    az network dns record-set a show \
+      --resource-group "$resource_group" \
+      --zone-name "$dns_zone" \
+      --name "$dns_record" \
+      --query "arecords[].ipv4Address" \
+      --output tsv 2>/dev/null || true
+  )
+
+  # ----------------------------------------
+  # If target IP already exists, do nothing
+  # ----------------------------------------
+  if echo "$existing_ips" | grep -q "$EXTERNAL_IP"; then
+    success "DNS already up to date"
+    return 0
+  fi
+
+  # ----------------------------------------
+  # Remove stale IPs
+  # ----------------------------------------
+  for ip in $existing_ips; do
+    [[ -n "$ip" ]] || continue
+
+    az network dns record-set a remove-record \
+      --resource-group "$resource_group" \
+      --zone-name "$dns_zone" \
+      --record-set-name "$dns_record" \
+      --ipv4-address "$ip" \
+      --output none || true
+  done
+
+  # ----------------------------------------
+  # Add current IP
+  # ----------------------------------------
+  az network dns record-set a add-record \
+    --resource-group "$resource_group" \
+    --zone-name "$dns_zone" \
+    --record-set-name "$dns_record" \
+    --ipv4-address "$EXTERNAL_IP" \
+    --output none
+
+  success "DNS configured: ${dns_record}.${dns_zone} -> ${EXTERNAL_IP}"
+}
+
 
 # ==========================================
 # INSTALL TOOLS
@@ -356,54 +433,11 @@ echo ""
 # ==========================================
 # CREATE OR UPDATE DNS RECORD (A RECORD)
 # ==========================================
-echo ""
-echo "▶️ Checking if DNS record exists..."
-if [[ -n "${EXTERNAL_IP:-}" ]]; then
-
-  echo ""
-  info "Ensuring DNS record"
-
-  if ! az network dns record-set a show \
-    --resource-group "$DNS_RESOURCE_GROUP" \
-    --zone-name "$DNS_ZONE" \
-    --name "$DNS_RECORD" >/dev/null 2>&1; then
-
-    az network dns record-set a create \
-      --resource-group "$DNS_RESOURCE_GROUP" \
-      --zone-name "$DNS_ZONE" \
-      --name "$DNS_RECORD" \
-      --ttl "$TTL" \
-      --output none
-  fi
-
-  EXISTING_IPS=$(
-    az network dns record-set a show \
-      --resource-group "$DNS_RESOURCE_GROUP" \
-      --zone-name "$DNS_ZONE" \
-      --name "$DNS_RECORD" \
-      --query "arecords[].ipv4Address" \
-      --output tsv 2>/dev/null || true
-  )
-
-  if ! echo "$EXISTING_IPS" | grep -q "$EXTERNAL_IP"; then
-
-    for ip in $EXISTING_IPS; do
-      az network dns record-set a remove-record \
-        --resource-group "$DNS_RESOURCE_GROUP" \
-        --zone-name "$DNS_ZONE" \
-        --record-set-name "$DNS_RECORD" \
-        --ipv4-address "$ip" || true
-    done
-
-    az network dns record-set a add-record \
-      --resource-group "$DNS_RESOURCE_GROUP" \
-      --zone-name "$DNS_ZONE" \
-      --record-set-name "$DNS_RECORD" \
-      --ipv4-address "$EXTERNAL_IP"
-  fi
-
-  success "DNS configured"
-fi
+echo "Main DNS Record: ${DNS_RECORD}.${DNS_ZONE} -> ${EXTERNAL_IP}"
+ensure_dns_a_record \
+  "$DNS_RESOURCE_GROUP" \
+  "$DNS_ZONE" \
+  "$DNS_RECORD"
 
 
 # ==========================================
@@ -489,6 +523,13 @@ kubectl get pods -n "$MONITORING_NAMESPACE"
 
 
 # ==========================================
+# CREATE OR UPDATE DNS RECORDS FOR PROMETHEUS AND GRAFANA
+# ==========================================
+ensure_dns_a_record "$DNS_RESOURCE_GROUP" "$DNS_ZONE" "prometheus.$DNS_RECORD"
+ensure_dns_a_record "$DNS_RESOURCE_GROUP" "$DNS_ZONE" "grafana.$DNS_RECORD"
+
+
+# ==========================================
 # FINAL OUTPUT
 # ==========================================
 echo ""
@@ -504,3 +545,5 @@ if [[ -n "${EXTERNAL_IP:-}" ]]; then
   echo "http://${EXTERNAL_IP}"
   echo "http://${DNS_RECORD}.${DNS_ZONE}"
 fi
+
+
