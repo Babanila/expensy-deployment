@@ -5,4 +5,4 @@ metadata:
   namespace: ${NAMESPACE}
 
 data:
-  NEXT_PUBLIC_API_URL: "http://${DOMAIN_NAME}/api"
+  NEXT_PUBLIC_API_URL: "http://${DOMAIN_NAME}"
