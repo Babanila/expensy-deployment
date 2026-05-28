@@ -417,7 +417,7 @@ az network dns record-set a show \
 echo ""
 info "Installing kube-prometheus-stack..."
 
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 helm repo update
 
 helm upgrade --install kube-prometheus-stack \
@@ -436,14 +436,29 @@ success "kube-prometheus-stack installed."
 # WAIT FOR CRDs
 # =========================================
 echo ""
-info "Waiting for ServiceMonitor CRD..."
+info "Waiting for Prometheus Operator CRDs..."
 
-kubectl wait \
-  --for condition=Established \
-  --timeout=120s \
-  crd/servicemonitors.monitoring.coreos.com
+CRDS=(
+  "servicemonitors.monitoring.coreos.com"
+  "prometheusrules.monitoring.coreos.com"
+  "podmonitors.monitoring.coreos.com"
+)
 
-success "ServiceMonitor CRD ready."
+for CRD in "${CRDS[@]}"; do
+  echo "Checking CRD: ${CRD}"
+
+  until kubectl get crd "${CRD}" >/dev/null 2>&1; do
+    echo "Waiting for CRD ${CRD}..."
+    sleep 5
+  done
+
+  kubectl wait \
+    --for=condition=Established \
+    --timeout=180s \
+    "crd/${CRD}"
+done
+
+success "Prometheus Operator CRDs ready."
 
 
 # =========================================
@@ -451,15 +466,19 @@ success "ServiceMonitor CRD ready."
 # =========================================
 echo ""
 info "Applying ServiceMonitor..."
-
 envsubst < "${K8S_DIR}/backend/servicemonitor.yaml" | kubectl apply -f -
 
 success "ServiceMonitor applied."
 
 
-info "Applying Prometheus & Grafana Ingress ..."
-kubectl apply -f "${K8S_DIR}/monitoring/prometheus-ingress.yaml"
-kubectl apply -f "${K8S_DIR}/monitoring/grafana-ingress.yaml"
+# =========================================
+# APPLY MONITORING INGRESS
+# =========================================
+echo ""
+info "Applying Prometheus & Grafana ingress..."
 
-success "Prometheus & Grafana Ingress applied."
+envsubst < "${K8S_DIR}/monitoring/prometheus-ingress.yaml" | kubectl apply -f -
+envsubst < "${K8S_DIR}/monitoring/grafana-ingress.yaml" | kubectl apply -f -
+
+success "Prometheus & Grafana ingress applied."
 
