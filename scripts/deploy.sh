@@ -420,6 +420,9 @@ info "Installing kube-prometheus-stack..."
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 helm repo update
 
+info "Validating Helm chart..."
+helm lint prometheus-community/kube-prometheus-stack -f "${K8S_DIR}/monitoring/values.yaml"
+
 helm upgrade --install kube-prometheus-stack \
   prometheus-community/kube-prometheus-stack \
   --namespace "${MONITORING_NAMESPACE}" \
@@ -428,7 +431,7 @@ helm upgrade --install kube-prometheus-stack \
   -f "${K8S_DIR}/monitoring/values.yaml" \
   --wait \
   --wait-for-jobs \
-  --timeout 45m
+  --timeout 30m
 
 success "kube-prometheus-stack installed."
 

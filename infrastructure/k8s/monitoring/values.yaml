@@ -1,66 +1,62 @@
 grafana:
   enabled: true
-  admin:
-    existingSecret: grafana-admin-secret
-    userKey: admin-user
-    passwordKey: admin-password
-  defaultDashboardsTimezone: browser
-  persistence:
-    enabled: true
-    type: pvc
-    accessModes:
-      - ReadWriteOnce
-    size: 10Gi
+
+  adminUser: admin
+  adminPassword: admin123
+
   service:
     type: ClusterIP
-  ingress:
+
+  persistence:
     enabled: false
-  grafana.ini:
-    server:
-      root_url: https://grafana.${DOMAIN_NAME}
-    security:
-      cookie_secure: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+
 
 prometheus:
   enabled: true
+
   prometheusSpec:
-    retention: 15d
-    retentionSize: 8GB
-    scrapeInterval: 15s
-    evaluationInterval: 15s
-    serviceMonitorSelectorNilUsesHelmValues: false
-    storageSpec:
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 50Gi
+    retention: 7d
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    storageSpec: {}
+
 
 alertmanager:
-  enabled: true
-  alertmanagerSpec:
-    storage:
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 10Gi
+  enabled: false
 
-kube-state-metrics:
-  enabled: true
-
-prometheus-node-exporter:
-  enabled: true
 
 kubeEtcd:
+  enabled: false
+
+kubeScheduler:
   enabled: false
 
 kubeControllerManager:
   enabled: false
 
-kubeScheduler:
-  enabled: false
+
+kubeProxy:
+  enabled: true
+
+
+kubeStateMetrics:
+  enabled: true
+
+
+nodeExporter:
+  enabled: true
