@@ -4,17 +4,10 @@ metadata:
   name: expensy-ingress
   namespace: ${NAMESPACE}
   annotations:
-    # NGINX
     kubernetes.io/ingress.class: nginx
-
-    # CERT MANAGER
     cert-manager.io/cluster-issuer: letsencrypt-prod
-
-    # FORCE HTTPS
+    acme.cert-manager.io/http01-edit-in-place: "true"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-
-    # REWRITE API PATH
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
 
 spec:
   ingressClassName: nginx
@@ -27,9 +20,17 @@ spec:
       http:
         paths:
           # BACKEND API
-          - path: /api(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend-service
+                port:
+                  number: 8706
 
+          # BACKEND METRICS
+          - path: /metrics
+            pathType: Exact
             backend:
               service:
                 name: backend-service

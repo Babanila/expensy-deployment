@@ -1,4 +1,4 @@
-# Use as parent image
+# Dependency Stage
 FROM node:20-alpine AS deps
 
 WORKDIR /app
@@ -7,17 +7,23 @@ COPY package*.json ./
 
 RUN npm install
 
-# Build the application
+# Builder Stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Pass the API URL as a build argument and set it as an environment variable
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+RUN echo "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL"
+
 RUN npm run build
 
-# Use a smaller image for the final stage
+# Runner Stage
 FROM node:20-alpine AS runner
 
 WORKDIR /app

@@ -48,6 +48,7 @@ jobs:
       FRONTEND_IMAGE: babanila/expensy_frontend
 
       IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+      CERT_MANAGER_EMAIL: ${{ secrets.CERT_MANAGER_EMAIL }}
 
     steps:
       - name: Checkout Repository
@@ -81,6 +82,7 @@ jobs:
           BACKEND_IMAGE=${BACKEND_IMAGE}
           FRONTEND_IMAGE=${FRONTEND_IMAGE}
           IMAGE_TAG=${IMAGE_TAG}
+          CERT_MANAGER_EMAIL=${CERT_MANAGER_EMAIL}
           EOF
 
           echo "Generated .env file:"

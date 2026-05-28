@@ -206,14 +206,15 @@ else
   info "Installing ingress-nginx..."
 
   helm upgrade --install ingress-nginx \
-    ingress-nginx/ingress-nginx \
-    --namespace "${INGRESS_NAMESPACE}" \
-    --create-namespace \
-    --set controller.replicaCount=2 \
-    --set controller.service.type=LoadBalancer \
-    --set controller.admissionWebhooks.enabled=true \
-    --wait \
-    --timeout 15m
+  ingress-nginx/ingress-nginx \
+  --namespace "${INGRESS_NAMESPACE}" \
+  --create-namespace \
+  --set controller.replicaCount=2 \
+  --set controller.service.type=LoadBalancer \
+  --set controller.admissionWebhooks.enabled=true \
+  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+  --wait \
+  --timeout 15m
 
   success "ingress-nginx installed successfully."
 fi

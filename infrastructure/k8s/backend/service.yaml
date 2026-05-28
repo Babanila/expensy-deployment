@@ -4,9 +4,15 @@ metadata:
   name: backend-service
   namespace: ${NAMESPACE}
 spec:
+  type: ClusterIP
   selector:
     app: backend
   ports:
-    - port: 8706
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 3000
+    - name: metrics
+      protocol: TCP
+      port: 8706
       targetPort: 8706
-  type: ClusterIP

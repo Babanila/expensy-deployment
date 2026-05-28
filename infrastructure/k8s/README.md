@@ -57,8 +57,15 @@ k8s/
 │   ├── deployment.yaml
 │   └── service.yaml
 │
-└── ingress/
-    └── ingress.yaml
+├── ingress/
+│   └── ingress.yaml
+│
+└── monitoring/
+│    ├── values.yaml
+│    ├── grafana-ingress.yaml
+│    ├── prometheus-ingress.yaml
+│    └── dashboards/
+
 
 
 
