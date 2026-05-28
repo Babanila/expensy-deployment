@@ -412,15 +412,13 @@ az network dns record-set a show \
 
 
 # =========================================
-# INSTALL PROMETHEUS & GRAFANA
+# INSTALL PROMETHEUS STACK
 # =========================================
 echo ""
-info "Installing Prometheus & Grafana..."
+info "Installing kube-prometheus-stack..."
 
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
-
-kubectl apply -f "${K8S_DIR}/monitoring/grafana-secret.yaml"
 
 helm upgrade --install kube-prometheus-stack \
   prometheus-community/kube-prometheus-stack \
@@ -431,8 +429,37 @@ helm upgrade --install kube-prometheus-stack \
   --timeout 20m \
   --atomic
 
-kubectl apply -f "${K8S_DIR}/monitoring/grafana-ingress.yaml"
-kubectl apply -f "${K8S_DIR}/monitoring/prometheus-ingress.yaml"
-kubectl apply -f "${K8S_DIR}/backend/servicemonitor.yaml"
+success "kube-prometheus-stack installed."
 
-success "Prometheus & Grafana installed successfully."
+
+# =========================================
+# WAIT FOR CRDs
+# =========================================
+echo ""
+info "Waiting for ServiceMonitor CRD..."
+
+kubectl wait \
+  --for condition=Established \
+  --timeout=120s \
+  crd/servicemonitors.monitoring.coreos.com
+
+success "ServiceMonitor CRD ready."
+
+
+# =========================================
+# APPLY SERVICEMONITOR
+# =========================================
+echo ""
+info "Applying ServiceMonitor..."
+
+envsubst < "${K8S_DIR}/backend/servicemonitor.yaml" | kubectl apply -f -
+
+success "ServiceMonitor applied."
+
+
+info "Applying Prometheus & Grafana Ingress ..."
+kubectl apply -f "${K8S_DIR}/monitoring/prometheus-ingress.yaml"
+kubectl apply -f "${K8S_DIR}/monitoring/grafana-ingress.yaml"
+
+success "Prometheus & Grafana Ingress applied."
+
