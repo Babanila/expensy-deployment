@@ -42,10 +42,13 @@ k8s/
 │
 ├── frontend/
 │   ├── deployment.yaml
+│   ├── hpa.yaml
 │   └── service.yaml
 │
 ├── backend/
 │   ├── deployment.yaml
+│   ├── hpa.yaml
+│   ├── servicemonitor.yaml
 │   └── service.yaml
 │
 ├── mongo/
@@ -63,6 +66,7 @@ k8s/
 └── monitoring/
 │    ├── values.yaml
 │    ├── grafana-ingress.yaml
+│    ├── grafana-secret.yaml
 │    ├── prometheus-ingress.yaml
 │    └── dashboards/
 
@@ -235,4 +239,12 @@ chmod +x scripts/k8s-destroy.sh
 Remove all resources:
 ``` bash
 scripts/k8s-destroy.sh
+```
+
+## Troubleshooting Commands
+``` bash
+kubectl get pods -n monitoring
+kubectl get ingress -n monitoring
+kubectl get servicemonitor -A
+kubectl top pods -A
 ```

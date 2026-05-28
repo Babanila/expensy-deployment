@@ -41,11 +41,15 @@ FRONTEND_IMAGE="${FRONTEND_IMAGE}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 INGRESS_NAMESPACE="ingress-nginx"
 
-
+# DNS VARIABLES
 DNS_RESOURCE_GROUP="${DNS_RESOURCE_GROUP:-dns-rg}"
 DNS_ZONE="${DNS_ZONE:-azure.ironlabs.online}"
 DNS_RECORD="${DNS_RECORD:-baba}"
 TTL=300
+
+# PROMETHEUS & GRAFANA
+MONITORING_NAMESPACE="monitoring"
+
 
 # ==========================================
 # VALIDATE REQUIRED VARIABLES
@@ -405,3 +409,30 @@ az network dns record-set a show \
   --zone-name "$DNS_ZONE" \
   --name "$DNS_RECORD" \
   --output table
+
+
+# =========================================
+# INSTALL PROMETHEUS & GRAFANA
+# =========================================
+echo ""
+info "Installing Prometheus & Grafana..."
+
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+kubectl apply -f "${K8S_DIR}/monitoring/grafana-secret.yaml"
+
+helm upgrade --install kube-prometheus-stack \
+  prometheus-community/kube-prometheus-stack \
+  --namespace "${MONITORING_NAMESPACE}" \
+  --create-namespace \
+  -f "${K8S_DIR}/monitoring/values.yaml" \
+  --wait \
+  --timeout 20m \
+  --atomic
+
+kubectl apply -f "${K8S_DIR}/monitoring/grafana-ingress.yaml"
+kubectl apply -f "${K8S_DIR}/monitoring/prometheus-ingress.yaml"
+kubectl apply -f "${K8S_DIR}/backend/servicemonitor.yaml"
+
+success "Prometheus & Grafana installed successfully."
