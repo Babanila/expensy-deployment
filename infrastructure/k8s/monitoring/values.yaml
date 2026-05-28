@@ -12,7 +12,7 @@ grafana:
   persistence:
     enabled: true
     type: pvc
-    storageClassName: managed-csi
+    storageClassName: default
     accessModes:
       - ReadWriteOnce
     size: 5Gi
@@ -22,6 +22,22 @@ grafana:
       enabled: true
       searchNamespace: ALL
       label: grafana_dashboard
+    
+    datasources:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_datasource
+    
+    alerts:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_alert
+    
+    notifiers:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_notifier
+      
 
 prometheus:
   prometheusSpec:
@@ -30,7 +46,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: managed-csi
+          storageClassName: default
           accessModes:
             - ReadWriteOnce
           resources:
@@ -44,7 +60,7 @@ alertmanager:
     storage:
       volumeClaimTemplate:
         spec:
-          storageClassName: managed-csi
+          storageClassName: default
           accessModes:
             - ReadWriteOnce
           resources:
