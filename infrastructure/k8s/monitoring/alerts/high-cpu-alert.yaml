@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alert-rules
+  namespace: monitoring
+  labels:
+    grafana_alert: "1"
+
+data:
+  cpu-alert.yaml: |
+    apiVersion: 1
+
+    groups:
+      - orgId: 1
+        name: kubernetes-alerts
+        folder: Kubernetes
+        interval: 1m
+
+        rules:
+          - uid: highcpu
+            title: High CPU Usage
+            condition: A
+
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+
+                datasourceUid: prometheus
+                model:
+                  editorMode: code
+                  expr: |
+                    100 - (avg by(instance)
+                    (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  refId: A
+
+            noDataState: NoData
+            execErrState: Error
+
+            for: 2m
+
+            annotations:
+              summary: High CPU detected
+
+            labels:
+              severity: warning
