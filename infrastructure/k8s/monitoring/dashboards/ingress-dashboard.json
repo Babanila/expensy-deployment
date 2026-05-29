@@ -1,0 +1,101 @@
+{
+  "title": "Ingress-CPU",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Total CPU usage (per pod)",
+      "datasource": "prometheus",
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"}[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Memory (MiB)",
+      "datasource": "prometheus",
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"}) / 1024 / 1024",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "CPU in millicores",
+      "datasource": "prometheus",
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"}[5m])) * 1000",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Working set memory",
+      "datasource": "prometheus",
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "CPU per node",
+      "datasource": "prometheus",
+      "targets": [
+        {
+          "expr": "sum by (node) (rate(container_cpu_usage_seconds_total{pod=~\"ingress-nginx-controller.*\"}[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Memory per node",
+      "datasource": "prometheus",
+      "targets": [
+        {
+          "expr": "sum by (node) (container_memory_working_set_bytes{pod=~\"ingress-nginx-controller.*\"})",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

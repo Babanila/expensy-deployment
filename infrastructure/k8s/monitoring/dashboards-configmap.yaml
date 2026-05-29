@@ -7,3 +7,111 @@ metadata:
     grafana_dashboard: "1"
 
 data:
+  backend-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "uid": "backend-dashboard",
+        "title": "Backend Dashboard",
+        "timezone": "browser",
+        "schemaVersion": 39,
+        "version": 1,
+        "refresh": "10s",
+        "panels": []
+      },
+      "overwrite": true
+    }
+
+  ingress-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "uid": "ingress-nginx-dashboard",
+        "title": "Ingress-CPU",
+        "timezone": "browser",
+        "schemaVersion": 39,
+        "version": 1,
+        "refresh": "10s",
+        "panels": [
+          {
+            "id": 1,
+            "type": "timeseries",
+            "title": "Total CPU usage (per pod)",
+            "datasource": "prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"}[5m]))"
+              }
+            ],
+            "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+          },
+          {
+            "id": 2,
+            "type": "timeseries",
+            "title": "Convert to MiB",
+            "datasource": "prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"}) / 1024 / 1024"
+              }
+            ],
+            "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+          },
+          {
+            "id": 3,
+            "type": "timeseries",
+            "title": "CPU in millicores",
+            "datasource": "prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"}[5m])) * 1000"
+              }
+            ],
+            "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+          },
+          {
+            "id": 4,
+            "type": "timeseries",
+            "title": "Working set memory",
+            "datasource": "prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"ingress-nginx\", pod=~\"ingress-nginx-controller.*\"})"
+              }
+            ],
+            "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+          },
+          {
+            "id": 5,
+            "type": "gauge",
+            "title": "CPU per node",
+            "datasource": "prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "sum by (node) (rate(container_cpu_usage_seconds_total{pod=~\"ingress-nginx-controller.*\"}[5m]))"
+              }
+            ],
+            "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 }
+          },
+          {
+            "id": 6,
+            "type": "stat",
+            "title": "Memory per node",
+            "datasource": "prometheus",
+            "targets": [
+              {
+                "refId": "A",
+                "expr": "sum by (node) (container_memory_working_set_bytes{pod=~\"ingress-nginx-controller.*\"})"
+              }
+            ],
+            "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 }
+          }
+        ]
+      },
+      "overwrite": true
+    }
