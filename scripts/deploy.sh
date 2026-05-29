@@ -584,6 +584,19 @@ wait_for_grafana
 apply_manifest_dir "${K8S_DIR}/monitoring/dashboards"
 
 
+# =========================================
+# APPLY GRAFANA ALERTS
+# =========================================
+echo ""
+info "Applying Grafana alerting configuration..."
+
+wait_for_grafana
+
+apply_manifest_dir "${K8S_DIR}/monitoring/alerts"
+
+success "Grafana alerts configured."
+
+
 # ==========================================
 # FINAL OUTPUT
 # ==========================================
