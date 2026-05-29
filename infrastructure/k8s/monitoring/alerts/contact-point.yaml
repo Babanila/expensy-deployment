@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-contact-points
+  namespace: monitoring
+  labels:
+    grafana_notifier: "1"
+
+data:
+  contact-points.yaml: |
+    apiVersion: 1
+
+    contactPoints:
+      - orgId: 1
+        name: email-alert
+        receivers:
+          - uid: email1
+            type: email
+            settings:
+              addresses: babanilal@yahoo.com
