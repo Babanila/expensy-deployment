@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-notification-policy
+  namespace: monitoring
+  labels:
+    grafana_notifier: "1"
+
+data:
+  notification-policies.yaml: |
+    apiVersion: 1
+
+    policies:
+      - orgId: 1
+        receiver: email-alert
