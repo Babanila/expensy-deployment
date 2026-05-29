@@ -306,7 +306,7 @@ wait_for_grafana() {
   for ((i=1; i<=retries; i++)); do
     if kubectl exec -n "${namespace}" \
       deployment/"${deployment}" \
-      -- wget -qO- http://localhost:80/api/health >/dev/null 2>&1; then
+      -- wget -qO- http://localhost:3000/api/health >/dev/null 2>&1; then
 
       success "Grafana is ready."
       return 0
