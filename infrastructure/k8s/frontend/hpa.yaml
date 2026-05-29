@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: frontend
   minReplicas: 2
-  maxReplicas: 6
+  maxReplicas: 10
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 60
