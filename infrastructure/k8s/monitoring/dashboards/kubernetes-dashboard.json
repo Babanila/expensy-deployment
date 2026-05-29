@@ -4,7 +4,7 @@
   "metadata": {
     "name": "efa86fd1d0c121a26444b636a3f509a8",
     "namespace": "default",
-    "uid": "ba957d00-e112-47de-98e2-09dcfad4947a",
+    "uid": "kubernetes-dashboard-uid",
     "resourceVersion": "1779991366139996",
     "generation": 1,
     "creationTimestamp": "2026-05-28T18:02:46Z",

@@ -4,7 +4,7 @@
   "metadata": {
     "name": "a87fb0d919ec0ea5f6543124e16c42a5",
     "namespace": "default",
-    "uid": "d5355d84-c42d-4146-9498-7656b574688d",
+    "uid": "nginx-dashboard-uid",
     "resourceVersion": "1779991365437002",
     "generation": 1,
     "creationTimestamp": "2026-05-28T18:02:45Z",
